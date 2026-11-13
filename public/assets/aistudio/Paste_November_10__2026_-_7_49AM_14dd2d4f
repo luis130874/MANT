@@ -1,0 +1,1272 @@
+import streamlit as st
+import pandas as pd
+from github import Github
+import base64
+from datetime import datetime, timedelta
+import io
+import re
+from fpdf import FPDF
+import plotly.express as px
+
+
+# ==========================================
+# 1. DISEÑO Y CONSTANTES (ESTILO SAAS ENTERPRISE)
+# ==========================================
+C_AZUL, C_OSCURO, C_VERDE, C_FONDO = "#2563EB", "#0F172A", "#10B981", "#F8FAFC"
+C_CARD_BG = "#FFFFFF"
+C_BORDER = "#E2E8F0"
+MESES_L = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SET", "OCT", "NOV", "DIC"]
+
+st.set_page_config(page_title="PRODEXUS Cloud v57.0", layout="wide", initial_sidebar_state="expanded")
+
+st.markdown(f"""
+    <style>
+    /* Estética General tipo SaaS */
+    .stApp {{ background-color: {C_FONDO} !important; font-family: 'Inter', sans-serif; }}
+    [data-testid="stSidebar"] {{ background-color: {C_OSCURO} !important; border-right: 1px solid #1E293B; }}
+    [data-testid="stSidebar"] * {{ color: #F1F5F9 !important; }}
+    
+    /* Ocultar elementos nativos innecesarios */
+    #MainMenu {{ visibility: hidden; }}
+    footer {{ visibility: hidden; }}
+
+    /* Tipografía y Encabezados limpios */
+    label, p, h1, h2, h3 {{ color: {C_OSCURO} !important; }}
+    h1 {{ font-weight: 800 !important; font-size: 1.75rem !important; letter-spacing: -0.025em; }}
+    
+    /* Tarjetas de Métricas Corporativas */
+    [data-testid="stMetric"] {{ 
+        background-color: {C_CARD_BG}; 
+        border-radius: 12px; 
+        padding: 20px; 
+        border: 1px solid {C_BORDER};
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -1px rgba(0, 0, 0, 0.02);
+        border-left: 4px solid {C_AZUL}; 
+    }}
+    
+    /* Pestañas (Tabs) Estilizadas tipo navegador moderno */
+    .stTabs [data-baseweb="tab-list"] {{ gap: 6px; background-color: transparent; border-bottom: 2px solid {C_BORDER}; padding-bottom: 0px; }}
+    .stTabs [data-baseweb="tab"] {{ 
+        border-radius: 8px 8px 0px 0px; 
+        padding: 10px 16px; 
+        font-weight: 600; 
+        background-color: #E2E8F0;
+        color: #475569;
+        border: none;
+    }}
+    .stTabs [aria-selected="true"] {{ 
+        background-color: {C_AZUL} !important; 
+        color: white !important; 
+        box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);
+    }}
+
+    /* Botones Estilizados */
+    .stButton>button {{ 
+        border-radius: 8px; 
+        background-color: {C_VERDE} !important; 
+        color: white !important; 
+        font-weight: 600; 
+        border: none; 
+        padding: 10px 20px;
+        box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+        transition: all 0.2s ease-in-out;
+    }}
+    .stButton>button:hover {{ opacity: 0.9; transform: translateY(-1px); }}
+    </style>
+""", unsafe_allow_html=True)
+
+# ==========================================
+# 2. MOTOR DE DATOS Y AUXILIARES
+# ==========================================
+GITHUB_REPO = "luis130874/prodexus-app" 
+try:
+    TOKEN = st.secrets["GITHUB_TOKEN"]
+    repo_gh = Github(TOKEN).get_repo(GITHUB_REPO)
+except Exception as e:
+    st.error(f"Error al conectar con GitHub Secrets: {e}")
+    st.stop()
+
+def leer_csv(archivo, cols):
+    try:
+        content = repo_gh.get_contents(archivo)
+        df = pd.read_csv(io.StringIO(base64.b64decode(content.content).decode('utf-8'))).astype(str)
+        return df.loc[:, ~df.columns.str.contains('^Unnamed')]
+    except Exception:
+        return pd.DataFrame(columns=cols)
+
+def guardar_csv(df, archivo, msg):
+    try:
+        old = repo_gh.get_contents(archivo)
+        repo_gh.update_file(old.path, msg, df.to_csv(index=False), old.sha)
+    except Exception:
+        try:
+            repo_gh.create_file(archivo, msg, df.to_csv(index=False))
+        except Exception as e2:
+            st.error(f"❌ Error al crear/sincronizar {archivo}: {e2}")
+
+def limpiar_t(t): 
+    return re.sub(r'[^a-zA-Z0-9\s.,:;()\-/_áéíóúÁÉÍÓÚñÑ]', '', str(t)).encode('latin-1', 'ignore').decode('latin-1')
+
+def generar_folio_mp(mes, indice_correlativo, anio=2026):
+    return f"MP-{anio}-{int(mes):02d}-{int(indice_correlativo):04d}"
+
+def generar_folio_mc(mes, indice_correlativo, anio=2026):
+    return f"MC-{anio}-{int(mes):02d}-{int(indice_correlativo):04d}"
+
+def generar_folio_ot(mes, indice_correlativo, anio=2026):
+    return f"OT-{anio}-{int(mes):02d}-{int(indice_correlativo):04d}"
+
+# --- CARGA DE DATOS ---
+COL_CLI = ["codigo", "nombre", "rut", "direccion", "telefono", "correo"]
+COL_SIS = ["codigo_sis", "nombre", "descripcion"]
+COL_FREQ = ["nombre_freq", "dias_tolerancia", "paso_meses"]
+COL_TEC = ["codigo_tec", "nombre", "especialidad", "estado"]
+COL_EQ = ["codigo_eq", "cliente", "nombre", "sistema", "marca", "modelo", "frecuencia", "tareas", "tecnico", "fecha_proxima", "cerrada"]
+COL_HIST = ["codigo_eq", "mes_n", "fecha_real", "id_ot", "comentarios", "tecnico"]
+COL_CORR = ["id_ot", "codigo_eq", "cliente", "fecha_emision", "falla_reportada", "fecha_tentativa", "dias_tolerancia", "estado", "fecha_real", "acciones_realizadas", "tecnico"]
+COL_OT = ["id_ot", "codigo_eq", "cliente", "fecha_emision", "trabajo_solicitado", "fecha_tentativa", "dias_tolerancia", "estado", "fecha_real", "acciones_realizadas", "tecnico"]
+
+df_c = leer_csv("clientes.csv", COL_CLI)
+df_sis = leer_csv("sistemas.csv", COL_SIS)
+df_freq = leer_csv("frecuencias.csv", COL_FREQ)
+df_tec = leer_csv("tecnicos.csv", COL_TEC)
+
+if df_freq.empty:
+    df_freq = pd.DataFrame([
+        ["Diaria", "1", "0"],
+        ["Semanal", "1", "0"],
+        ["Quincenal", "2", "0"],
+        ["Mensual", "4", "1"],
+        ["Trimestral", "7", "3"],
+        ["Semestral", "15", "6"],
+        ["Anual", "30", "12"]
+    ], columns=COL_FREQ)
+    guardar_csv(df_freq, "frecuencias.csv", "Seed frecuencias")
+
+df_e = leer_csv("equipos.csv", COL_EQ)
+df_h = leer_csv("historial.csv", COL_HIST)
+df_corr = leer_csv("correctivos.csv", COL_CORR)
+df_ot = leer_csv("ordenes_trabajo.csv", COL_OT)
+
+for col_necesaria in [COL_CORR, COL_OT]:
+    for c_item in col_necesaria:
+        if c_item not in df_corr.columns: df_corr[c_item] = ""
+        if c_item not in df_ot.columns: df_ot[c_item] = ""
+
+logo_f = None
+try:
+    logo_data = repo_gh.get_contents("logo_prodexus.png").decoded_content
+    with open("l.png", "wb") as f: f.write(logo_data)
+    logo_f = "l.png"
+except Exception:
+    pass
+
+def obtener_frecuencia_config(frecuencia_str):
+    match = df_freq[df_freq['nombre_freq'].astype(str).str.strip() == str(frecuencia_str).strip()]
+    if not match.empty:
+        try:
+            paso_val = int(float(match.iloc[0]['paso_meses']))
+            tol_val = int(float(match.iloc[0]['dias_tolerancia']))
+            return paso_val, tol_val
+        except:
+            pass
+    freq_lower = str(frecuencia_str).strip().lower()
+    if "diaria" in freq_lower:
+        return 0, 1
+    elif "semanal" in freq_lower:
+        return 0, 1
+    elif "quincenal" in freq_lower:
+        return 0, 2
+    mapping = {"mensual": 1, "trimestral": 3, "semestral": 6, "anual": 12}
+    return mapping.get(freq_lower, 1), 4
+
+def obtener_paso(frecuencia_str):
+    p, _ = obtener_frecuencia_config(frecuencia_str)
+    return p
+
+def obtener_tolerancia(frecuencia_str):
+    _, t = obtener_frecuencia_config(frecuencia_str)
+    return t
+
+# ==========================================
+# MOTOR DE OCURRENCIAS PREVENTIVAS (OPCIÓN A)
+# ==========================================
+def calcular_ocurrencias_equipo(eq, anio=2026):
+    freq_str = str(eq.get('frecuencia', 'Mensual')).strip()
+    freq_lower = freq_str.lower()
+    f_i = pd.to_datetime(eq.get('fecha_proxima'), errors='coerce')
+    
+    inicio_dt = f_i.date() if pd.notnull(f_i) else datetime(anio, 1, 1).date()
+    fin_anio = datetime(anio, 12, 31).date()
+    ocurrencias = []
+    
+    if "diaria" in freq_lower:
+        curr = max(inicio_dt, datetime(anio, 1, 1).date())
+        while curr <= fin_anio:
+            ocurrencias.append({'fecha': curr, 'mes_n': curr.month, 'seq_key': curr.strftime('%Y%m%d')})
+            curr += timedelta(days=1)
+    elif "semanal" in freq_lower:
+        curr = max(inicio_dt, datetime(anio, 1, 1).date())
+        while curr <= fin_anio:
+            ocurrencias.append({'fecha': curr, 'mes_n': curr.month, 'seq_key': curr.strftime('%Y%m%d')})
+            curr += timedelta(days=7)
+    elif "quincenal" in freq_lower:
+        curr = max(inicio_dt, datetime(anio, 1, 1).date())
+        while curr <= fin_anio:
+            ocurrencias.append({'fecha': curr, 'mes_n': curr.month, 'seq_key': curr.strftime('%Y%m%d')})
+            curr += timedelta(days=14)
+    else:
+        paso, _ = obtener_frecuencia_config(freq_str)
+        if paso < 1: paso = 1
+        mes_inicio = inicio_dt.month if inicio_dt.year == anio else 1
+        dia_base = inicio_dt.day if 1 <= inicio_dt.day <= 28 else 15
+        
+        m = mes_inicio
+        while m <= 12:
+            try: dt_oc = datetime(anio, m, dia_base).date()
+            except: dt_oc = datetime(anio, m, 28).date()
+            if datetime(anio, 1, 1).date() <= dt_oc <= fin_anio:
+                ocurrencias.append({'fecha': dt_oc, 'mes_n': m, 'seq_key': f"{m:02d}"})
+            m += paso
+            
+    return ocurrencias
+
+def generar_mapa_folios_anual(df_equipos, anio=2026):
+    mapa = {}
+    if df_equipos.empty: return mapa
+    df_sorted = df_equipos.sort_values('codigo_eq').reset_index(drop=True)
+    contadores_mes = {m: 1 for m in range(1, 13)}
+    
+    for _, eq in df_sorted.iterrows():
+        eq_code = str(eq['codigo_eq']).strip()
+        occurs = calcular_ocurrencias_equipo(eq, anio)
+        for occ in occurs:
+            m = occ['mes_n']
+            corr = contadores_mes[m]
+            folio = generar_folio_mp(m, corr, anio)
+            mapa[(eq_code, occ['fecha'])] = folio
+            mapa[(eq_code, occ['seq_key'])] = folio
+            contadores_mes[m] += 1
+            
+    return mapa
+
+lista_tecnicos_activos = df_tec[df_tec['estado'].astype(str).str.strip() == "Activo"]['nombre'].tolist() if not df_tec.empty else []
+if not lista_tecnicos_activos:
+    lista_tecnicos_activos = ["Sin Técnicos Registrados"]
+
+# ==========================================
+# 3. INTERFAZ
+# ==========================================
+with st.sidebar:
+    if logo_f: st.image(logo_f, width=160)
+    st.markdown("### 🏢 Panel de Control")
+    nombres_clientes = [c.strip() for c in df_c['nombre'].tolist() if c and c.strip().lower() not in ["nan", "none", ""]]
+    emp_g = st.selectbox("Seleccione Empresa:", nombres_clientes if nombres_clientes else ["Cargue Clientes"])
+    st.markdown("---")
+    st.caption("PRODEXUS Cloud v57.0 • Enterprise Edition")
+    
+st.title("Gestión de Mantenimiento Industrial")
+t_ini, t_cli, t_eq, t_sis, t_freq_tab, t_tec_tab, t_plan, t_mp, t_corr, t_ot_tab = st.tabs([
+    "🏠 INICIO", "👥 CLIENTES", "🛠️ EQUIPOS", "⚙️ SISTEMAS", "⏱️ FRECUENCIAS", "👷 TÉCNICOS", "📅 PLAN", "📑 MP", "🔧 CORRECTIVOS", "📋 TRABAJOS (OT)"
+])
+
+df_e_c = df_e[df_e['cliente'].astype(str).str.strip() == str(emp_g).strip()].copy() if not df_e.empty else pd.DataFrame(columns=COL_EQ)
+
+# --- TAB INICIO ---
+with t_ini:
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Clientes Activos", len(df_c))
+    c2.metric("Equipos Protegidos", len(df_e_c))
+    c3.metric("Técnicos Registrados", len(df_tec))
+    
+    st.markdown("---")
+    st.subheader(f"📊 Panel de Indicadores y Desempeño - {emp_g}")
+    
+    modo_panel = st.radio("Seleccione el Panel de Análisis:", ["KPIs de Cumplimiento (Empresa)", "Rendimiento por Técnico (Asignadas vs Cerradas)"], horizontal=True)
+    
+    if modo_panel == "KPIs de Cumplimiento (Empresa)":
+        tipo_vista_kpi = st.radio("Seleccione tipo de vista de indicadores:", ["Mensual", "Anual Acumulado (2026)", "Evolución Anual (12 Meses)"], horizontal=True)
+        hoy_dt = datetime.now().date()
+        
+        if df_e_c.empty:
+            st.info(f"ℹ️ No hay equipos registrados para la empresa **{emp_g}**.")
+        else:
+            mapa_folios_global = generar_mapa_folios_anual(df_e, 2026)
+
+            if tipo_vista_kpi == "Mensual":
+                col_sel_mes, _ = st.columns([2, 2])
+                mes_kpi_sel = col_sel_mes.selectbox("Seleccione Mes para Auditoría KPI:", MESES_L, index=datetime.now().month-1, key="kpi_mes_sel")
+                kpi_m_idx = MESES_L.index(mes_kpi_sel) + 1
+                
+                total_prog, en_fecha, fuera_fecha, pendientes_vencidos, por_vencer = 0, 0, 0, 0, 0
+                
+                for _, eq in df_e_c.iterrows():
+                    eq_code = str(eq['codigo_eq']).strip()
+                    occurs = calcular_ocurrencias_equipo(eq, 2026)
+                    for occ in occurs:
+                        if occ['mes_n'] == kpi_m_idx:
+                            total_prog += 1
+                            folio_esp = mapa_folios_global.get((eq_code, occ['fecha']), generar_folio_mp(kpi_m_idx, 1))
+                            reg_hist = df_h[(df_h['codigo_eq'].astype(str).str.strip() == eq_code) & (df_h['id_ot'].astype(str).str.strip() == folio_esp)]
+                            f_prev_dt = occ['fecha']
+
+                            if not reg_hist.empty:
+                                f_real_str = reg_hist.iloc[0]['fecha_real']
+                                f_real = pd.to_datetime(f_real_str, format="%d/%m/%Y", errors='coerce')
+                                if pd.notnull(f_real):
+                                    dif_dias = abs((f_real.date() - f_prev_dt).days)
+                                    tol = obtener_tolerancia(eq['frecuencia'])
+                                    if dif_dias <= tol: en_fecha += 1
+                                    else: fuera_fecha += 1
+                                else: en_fecha += 1
+                            else:
+                                if f_prev_dt <= hoy_dt: pendientes_vencidos += 1
+                                else: por_vencer += 1
+
+                porcentaje_cumplimiento = (en_fecha / total_prog * 100) if total_prog > 0 else 0.0
+                
+                k1, k2, k3, k4, k5 = st.columns(5)
+                k1.metric("Programados", total_prog)
+                k2.metric("✅ A Tiempo", en_fecha)
+                k3.metric("⚠️ Fuera de Fecha", fuera_fecha)
+                k4.metric("⏳ Pendientes Vencidos", pendientes_vencidos)
+                k5.metric("📅 Por Vencer", por_vencer)
+                
+                st.markdown(f"""
+                    <div style="background:white; padding:24px; border-radius:12px; border-left:6px solid {C_VERDE}; text-align:center; margin-top:20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);">
+                        <p style="margin:0; color:{C_OSCURO}; font-size:0.95rem; font-weight:700; text-transform: uppercase; letter-spacing: 0.05em;">🎯 KPI CUMPLIMIENTO DEL MES</p>
+                        <h1 style="margin:8px 0 0 0; color:{C_VERDE}; font-size:3rem; font-weight: 800;">{porcentaje_cumplimiento:.1f}%</h1>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+            elif tipo_vista_kpi == "Anual Acumulado (2026)":
+                anual_prog, anual_en_fecha, anual_fuera_fecha, anual_pendientes = 0, 0, 0, 0
+                for _, eq in df_e_c.iterrows():
+                    eq_code = str(eq['codigo_eq']).strip()
+                    occurs = calcular_ocurrencias_equipo(eq, 2026)
+                    for occ in occurs:
+                        anual_prog += 1
+                        folio_esp = mapa_folios_global.get((eq_code, occ['fecha']), generar_folio_mp(occ['mes_n'], 1))
+                        reg_hist = df_h[(df_h['codigo_eq'].astype(str).str.strip() == eq_code) & (df_h['id_ot'].astype(str).str.strip() == folio_esp)]
+                        f_prev_dt = occ['fecha']
+
+                        if not reg_hist.empty:
+                            f_real_str = reg_hist.iloc[0]['fecha_real']
+                            f_real = pd.to_datetime(f_real_str, format="%d/%m/%Y", errors='coerce')
+                            if pd.notnull(f_real):
+                                dif_dias = abs((f_real.date() - f_prev_dt).days)
+                                tol = obtener_tolerancia(eq['frecuencia'])
+                                if dif_dias <= tol: anual_en_fecha += 1
+                                else: anual_fuera_fecha += 1
+                            else: anual_en_fecha += 1
+                        else:
+                            if f_prev_dt <= hoy_dt: anual_pendientes += 1
+
+                porcentaje_cumplimiento_anual = (anual_en_fecha / anual_prog * 100) if anual_prog > 0 else 0.0
+                ak1, ak2, ak3, ak4 = st.columns(4)
+                ak1.metric("Anual Programados", anual_prog)
+                ak2.metric("✅ A Tiempo", anual_en_fecha)
+                ak3.metric("⚠️ Fuera Fecha", anual_fuera_fecha)
+                ak4.metric("⏳ Pendientes Vencidos", anual_pendientes)
+                
+                st.markdown(f"""
+                    <div style="background:white; padding:24px; border-radius:12px; border-left:6px solid {C_AZUL}; text-align:center; margin-top:20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);">
+                        <p style="margin:0; color:{C_OSCURO}; font-size:0.95rem; font-weight:700; text-transform: uppercase; letter-spacing: 0.05em;">🎯 KPI CUMPLIMIENTO ANUAL ACUMULADO</p>
+                        <h1 style="margin:8px 0 0 0; color:{C_AZUL}; font-size:3rem; font-weight: 800;">{porcentaje_cumplimiento_anual:.1f}%</h1>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+            else:
+                st.markdown("#### 📈 Evolución Gráfica de Cumplimiento Mensual (%) - Año 2026")
+                chart_data = []
+                
+                for m_idx in range(1, 13):
+                    m_label = MESES_L[m_idx - 1]
+                    m_prog, m_en_fecha = 0, 0
+                    
+                    for _, eq in df_e_c.iterrows():
+                        eq_code = str(eq['codigo_eq']).strip()
+                        occurs = calcular_ocurrencias_equipo(eq, 2026)
+                        for occ in occurs:
+                            if occ['mes_n'] == m_idx:
+                                m_prog += 1
+                                folio_esp = mapa_folios_global.get((eq_code, occ['fecha']), generar_folio_mp(m_idx, 1))
+                                reg_hist = df_h[(df_h['codigo_eq'].astype(str).str.strip() == eq_code) & (df_h['id_ot'].astype(str).str.strip() == folio_esp)]
+                                f_prev_dt = occ['fecha']
+
+                                if not reg_hist.empty:
+                                    f_real_str = reg_hist.iloc[0]['fecha_real']
+                                    f_real = pd.to_datetime(f_real_str, format="%d/%m/%Y", errors='coerce')
+                                    if pd.notnull(f_real):
+                                        dif_dias = abs((f_real.date() - f_prev_dt).days)
+                                        tol = obtener_tolerancia(eq['frecuencia'])
+                                        if dif_dias <= tol: m_en_fecha += 1
+                                        else: m_en_fecha += 1
+                                    else: m_en_fecha += 1
+
+                    pct_mes = (m_en_fecha / m_prog * 100) if m_prog > 0 else 0.0
+                    chart_data.append({"Mes": m_label, "Cumplimiento (%)": pct_mes})
+                    
+                df_chart = pd.DataFrame(chart_data)
+                df_chart["Mes"] = pd.Categorical(df_chart["Mes"], categories=MESES_L, ordered=True)
+                df_chart = df_chart.sort_values("Mes")
+                
+                fig = px.bar(df_chart, x="Mes", y="Cumplimiento (%)", text="Cumplimiento (%)", color_discrete_sequence=[C_AZUL])
+                fig.update_traces(texttemplate='%{text:.1f}%', textposition='outside', marker_color=C_AZUL)
+                fig.update_layout(
+                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(family="Inter, sans-serif", color=C_OSCURO, size=12),
+                    xaxis=dict(title="", showgrid=False, tickmode='array', tickvals=MESES_L),
+                    yaxis=dict(title="Cumplimiento (%)", range=[0, 115], showgrid=True, gridcolor=C_BORDER),
+                    margin=dict(l=10, r=10, t=30, b=10), height=380
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+    else:
+        st.markdown("### 👷 Desempeño Operativo por Técnico")
+        st.caption("Consolidado histórico de órdenes Correctivas (MC) y de Trabajo (OT) asignadas frente a cerradas a tiempo.")
+        
+        if df_tec.empty:
+            st.info("No hay técnicos registrados en el sistema. Diríjase a la pestaña **TÉCNICOS** para dar de alta al personal.")
+        else:
+            data_kpi_tec = []
+            df_corr_all = leer_csv("correctivos.csv", COL_CORR)
+            df_ot_all = leer_csv("ordenes_trabajo.csv", COL_OT)
+            
+            for _, t_row in df_tec.iterrows():
+                t_nombre = str(t_row['nombre']).strip()
+                mc_tec = df_corr_all[df_corr_all['tecnico'].astype(str).str.strip() == t_nombre] if not df_corr_all.empty else pd.DataFrame()
+                ot_tec = df_ot_all[df_ot_all['tecnico'].astype(str).str.strip() == t_nombre] if not df_ot_all.empty else pd.DataFrame()
+                
+                total_asignadas = len(mc_tec) + len(ot_tec)
+                cerradas_a_tiempo, cerradas_fuera_termino, pendientes = 0, 0, 0
+                
+                for _, r in pd.concat([mc_tec, ot_tec]).iterrows():
+                    est = str(r.get('estado', ''))
+                    if "A tiempo" in est: cerradas_a_tiempo += 1
+                    elif "Fuera de término" in est: cerradas_fuera_termino += 1
+                    elif est == "Pendiente": pendientes += 1
+                        
+                eficiencia_tec = (cerradas_a_tiempo / (cerradas_a_tiempo + cerradas_fuera_termino) * 100) if (cerradas_a_tiempo + cerradas_fuera_termino) > 0 else 0.0
+                
+                data_kpi_tec.append({
+                    "Código": t_row['codigo_tec'],
+                    "Técnico": t_nombre,
+                    "Especialidad": t_row['especialidad'],
+                    "Asignadas Total": total_asignadas,
+                    "Pendientes": pendientes,
+                    "✅ A Tiempo": cerradas_a_tiempo,
+                    "⚠️ Fuera Término": cerradas_fuera_termino,
+                    "Cumplimiento (%)": f"{eficiencia_tec:.1f}%"
+                })
+                
+            df_resumen_tec = pd.DataFrame(data_kpi_tec)
+            st.dataframe(df_resumen_tec, use_container_width=True, hide_index=True)
+
+# --- TAB CLIENTES ---
+with t_cli:
+    acc_c = st.radio("Acción:", ["Listado", "Alta", "Modificar", "Eliminar"], horizontal=True, key="c_v33")
+    if acc_c == "Alta":
+        with st.form("f_c_a", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            c_cod = c1.text_input("Código"); c_nom = c1.text_input("Nombre"); c_rut = c1.text_input("RUT")
+            c_dir = c2.text_input("Dirección"); c_tel = c2.text_input("Teléfono"); c_cor = c2.text_input("Correo")
+            if st.form_submit_button("GUARDAR"):
+                df_c = pd.concat([df_c, pd.DataFrame([[c_cod, c_nom, c_rut, c_dir, c_tel, c_cor]], columns=COL_CLI)], ignore_index=True)
+                guardar_csv(df_c, "clientes.csv", "Alta Clie")
+                st.toast("✅ ¡Cliente guardado con éxito!", icon="🎉")
+                st.rerun()
+    elif acc_c == "Modificar" and not df_c.empty:
+        c_ed = st.selectbox("Editar:", df_c['nombre'].tolist())
+        idx_c = df_c[df_c['nombre'] == c_ed].index
+        with st.form("f_c_e"):
+            c1, c2 = st.columns(2)
+            m_cod = c1.text_input("Código", value=df_c.loc[idx_c, 'codigo'].iloc[0])
+            m_nom = c1.text_input("Nombre", value=df_c.loc[idx_c, 'nombre'].iloc[0])
+            m_rut = c1.text_input("RUT", value=df_c.loc[idx_c, 'rut'].iloc[0])
+            m_dir = c2.text_input("Dirección", value=df_c.loc[idx_c, 'direccion'].iloc[0])
+            m_tel = c2.text_input("Teléfono", value=df_c.loc[idx_c, 'telefono'].iloc[0])
+            m_cor = c2.text_input("Correo", value=df_c.loc[idx_c, 'correo'].iloc[0])
+            if st.form_submit_button("ACTUALIZAR"):
+                df_c.loc[idx_c] = [m_cod, m_nom, m_rut, m_dir, m_tel, m_cor]
+                guardar_csv(df_c, "clientes.csv", "Mod Clie")
+                st.toast("✅ ¡Cliente actualizado con éxito!", icon="🎉")
+                st.rerun()
+    elif acc_c == "Eliminar" and not df_c.empty:
+        st.warning("⚠️ **Atención:** Al eliminar un cliente, se borrarán **automáticamente** todos sus equipos registrados y su historial de mantenimientos.")
+        c_del = st.selectbox("Cliente a Eliminar:", df_c['nombre'].tolist(), key="select_del_cli")
+        if st.button("🗑️ ELIMINAR CLIENTE Y SUS DATOS EN CASCADA"):
+            df_c = df_c[df_c['nombre'].astype(str).str.strip() != str(c_del).strip()]
+            guardar_csv(df_c, "clientes.csv", f"Eliminar Clie {c_del}")
+            
+            df_e_full = leer_csv("equipos.csv", COL_EQ)
+            if not df_e_full.empty:
+                equipos_a_borrar = df_e_full[df_e_full['cliente'].astype(str).str.strip() == str(c_del).strip()]['codigo_eq'].astype(str).tolist()
+                df_e_new = df_e_full[df_e_full['cliente'].astype(str).str.strip() != str(c_del).strip()]
+                guardar_csv(df_e_new, "equipos.csv", f"Eliminar equipos de cliente {c_del}")
+                
+                df_h_full = leer_csv("historial.csv", COL_HIST)
+                if not df_h_full.empty and equipos_a_borrar:
+                    df_h_new = df_h_full[~df_h_full['codigo_eq'].astype(str).str.strip().isin([e.strip() for e in equipos_a_borrar])]
+                    guardar_csv(df_h_new, "historial.csv", f"Eliminar historial de equipos de cliente {c_del}")
+
+            st.toast(f"✅ ¡Cliente {c_del}, sus equipos e historial fueron eliminados!", icon="🗑️")
+            st.rerun()
+    else: st.dataframe(df_c, use_container_width=True, hide_index=True)
+
+# --- TAB EQUIPOS ---
+with t_eq:
+    nombres_sistemas_lista = [s.strip() for s in df_sis['nombre'].tolist() if s and s.strip().lower() not in ["nan", "none", ""]]
+    nombres_freq_lista = [f.strip() for f in df_freq['nombre_freq'].tolist() if f and f.strip().lower() not in ["nan", "none", ""]]
+    
+    acc_e = st.radio("Acción Equipo:", ["Listado", "Alta", "Modificar", "Eliminar"], horizontal=True, key="e_v33")
+    if acc_e == "Alta":
+        with st.form("f_e_a", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            e_id = c1.text_input("ID")
+            e_nom = c1.text_input("Nombre")
+            e_sis = c1.selectbox("Sistema", nombres_sistemas_lista if nombres_sistemas_lista else ["Sin Sistemas Registrados"])
+            e_mar = c2.text_input("Marca")
+            e_mod = c2.text_input("Modelo")
+            e_fre = c1.selectbox("Frecuencia", nombres_freq_lista if nombres_freq_lista else ["Mensual"])
+            e_fec = c2.date_input("Inicio")
+            e_tar = st.text_area("Protocolo")
+            if st.form_submit_button("REGISTRAR"):
+                new_e = pd.DataFrame([[e_id, emp_g, e_nom, e_sis, e_mar, e_mod, e_fre, e_tar, "", str(e_fec), ""]], columns=COL_EQ)
+                df_e = pd.concat([df_e, new_e], ignore_index=True)
+                guardar_csv(df_e, "equipos.csv", "Alta Eq")
+                st.toast("✅ ¡Equipo registrado con éxito!", icon="🎉")
+                st.rerun()
+    elif acc_e == "Modificar" and not df_e_c.empty:
+        e_ed = st.selectbox("ID Eq:", df_e_c['codigo_eq'].tolist())
+        idx_e = df_e[df_e['codigo_eq'] == e_ed].index
+        
+        sis_actual = df_e.loc[idx_e, 'sistema'].iloc[0]
+        idx_sis_def = nombres_sistemas_lista.index(sis_actual) if sis_actual in nombres_sistemas_lista else 0
+        freq_actual = df_e.loc[idx_e, 'frecuencia'].iloc[0]
+        idx_freq_def = nombres_freq_lista.index(freq_actual) if freq_actual in nombres_freq_lista else 0
+        
+        with st.form("f_e_e"):
+            c1, c2 = st.columns(2)
+            m_nom = c1.text_input("Nombre", value=df_e.loc[idx_e, 'nombre'].iloc[0])
+            m_sis = c1.selectbox("Sistema", nombres_sistemas_lista if nombres_sistemas_lista else ["Sin Sistemas Registrados"], index=idx_sis_def if nombres_sistemas_lista else 0)
+            m_mar = c2.text_input("Marca", value=df_e.loc[idx_e, 'marca'].iloc[0])
+            m_mod = c2.text_input("Modelo", value=df_e.loc[idx_e, 'modelo'].iloc[0])
+            m_fre = c1.selectbox("Frecuencia", nombres_freq_lista if nombres_freq_lista else ["Mensual"], index=idx_freq_def if nombres_freq_lista else 0)
+            m_tar = st.text_area("Tareas", value=df_e.loc[idx_e, 'tareas'].iloc[0])
+            if st.form_submit_button("ACTUALIZAR"):
+                df_e.loc[idx_e, ['nombre','sistema','marca','modelo','frecuencia','tareas']] = [m_nom, m_sis, m_mar, m_mod, m_fre, m_tar]
+                guardar_csv(df_e, "equipos.csv", "Mod Eq")
+                st.toast("✅ ¡Equipo actualizado con éxito!", icon="🎉")
+                st.rerun()
+    elif acc_e == "Eliminar" and not df_e_c.empty:
+        st.warning("⚠️ Seleccione el equipo que desea eliminar permanentemente de la base de datos:")
+        e_del = st.selectbox("ID de Equipo a Eliminar:", df_e_c['codigo_eq'].tolist(), key="select_del_eq")
+        if st.button("🗑️ ELIMINAR EQUIPO SELECCIONADO"):
+            df_e = df_e[df_e['codigo_eq'].astype(str) != str(e_del)]
+            guardar_csv(df_e, "equipos.csv", f"Eliminar Eq {e_del}")
+            st.toast(f"✅ ¡Equipo {e_del} eliminado correctamente!", icon="🗑️")
+            st.rerun()
+    else: st.dataframe(df_e_c, use_container_width=True, hide_index=True)
+
+# --- TAB SISTEMAS ---
+with t_sis:
+    acc_sis = st.radio("Acción Sistema:", ["Listado", "Alta", "Modificar", "Eliminar"], horizontal=True, key="sis_v50")
+    if acc_sis == "Alta":
+        with st.form("f_sis_a", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            s_cod = c1.text_input("Código de Sistema (ej. HVAC-01)")
+            s_nom = c1.text_input("Nombre del Sistema (ej. Climatización / Chiller)")
+            s_desc = c2.text_area("Descripción")
+            if st.form_submit_button("GUARDAR SISTEMA"):
+                if s_nom.strip():
+                    new_sis = pd.DataFrame([[s_cod, s_nom, s_desc]], columns=COL_SIS)
+                    df_sis = pd.concat([df_sis, new_sis], ignore_index=True)
+                    guardar_csv(df_sis, "sistemas.csv", "Alta Sistema")
+                    st.toast("✅ ¡Sistema guardado con éxito!", icon="🎉")
+                    st.rerun()
+                else: st.warning("El nombre del sistema es obligatorio.")
+    elif acc_sis == "Modificar" and not df_sis.empty:
+        s_ed = st.selectbox("Seleccione Sistema a Editar:", df_sis['nombre'].tolist())
+        idx_s = df_sis[df_sis['nombre'] == s_ed].index
+        with st.form("f_sis_e"):
+            c1, c2 = st.columns(2)
+            m_cod = c1.text_input("Código", value=df_sis.loc[idx_s, 'codigo_sis'].iloc[0])
+            m_nom = c1.text_input("Nombre", value=df_sis.loc[idx_s, 'nombre'].iloc[0])
+            m_desc = c2.text_area("Descripción", value=df_sis.loc[idx_s, 'descripcion'].iloc[0])
+            if st.form_submit_button("ACTUALIZAR SISTEMA"):
+                df_sis.loc[idx_s] = [m_cod, m_nom, m_desc]
+                guardar_csv(df_sis, "sistemas.csv", "Mod Sistema")
+                st.toast("✅ ¡Sistema actualizado con éxito!", icon="🎉")
+                st.rerun()
+    elif acc_sis == "Eliminar" and not df_sis.empty:
+        st.warning("⚠️ Al eliminar un sistema, los equipos asociados quedarán sin referencia de sistema hasta que se los actualice.")
+        s_del = st.selectbox("Sistema a Eliminar:", df_sis['nombre'].tolist(), key="select_del_sis")
+        if st.button("🗑️ ELIMINAR SISTEMA"):
+            df_sis = df_sis[df_sis['nombre'].astype(str).str.strip() != str(s_del).strip()]
+            guardar_csv(df_sis, "sistemas.csv", f"Eliminar Sistema {s_del}")
+            st.toast(f"✅ ¡Sistema {s_del} eliminado correctamente!", icon="🗑️")
+            st.rerun()
+    else: st.dataframe(df_sis, use_container_width=True, hide_index=True)
+
+# --- TAB FRECUENCIAS Y TOLERANCIAS ---
+with t_freq_tab:
+    acc_freq = st.radio("Acción Frecuencia:", ["Listado", "Alta", "Modificar", "Eliminar"], horizontal=True, key="freq_v51")
+    if acc_freq == "Alta":
+        with st.form("f_freq_a", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            f_nom = c1.text_input("Nombre Frecuencia (ej. Bimestral)")
+            f_tol = c1.number_input("Días de Tolerancia (+/-)", min_value=0, value=5)
+            f_paso = c2.number_input("Paso en Meses (0 para Sub-Mensuales)", min_value=0, value=2)
+            if st.form_submit_button("GUARDAR FRECUENCIA"):
+                if f_nom.strip():
+                    new_f = pd.DataFrame([[f_nom.strip(), str(f_tol), str(f_paso)]], columns=COL_FREQ)
+                    df_freq = pd.concat([df_freq, new_f], ignore_index=True)
+                    guardar_csv(df_freq, "frecuencias.csv", "Alta Frecuencia")
+                    st.toast("✅ ¡Frecuencia guardada con éxito!", icon="🎉")
+                    st.rerun()
+                else: st.warning("El nombre de la frecuencia es obligatorio.")
+    elif acc_freq == "Modificar" and not df_freq.empty:
+        f_ed = st.selectbox("Seleccione Frecuencia a Editar:", df_freq['nombre_freq'].tolist())
+        idx_f = df_freq[df_freq['nombre_freq'] == f_ed].index
+        with st.form("f_freq_e"):
+            c1, c2 = st.columns(2)
+            m_nom = c1.text_input("Nombre", value=df_freq.loc[idx_f, 'nombre_freq'].iloc[0])
+            try: val_tol = int(float(df_freq.loc[idx_f, 'dias_tolerancia'].iloc[0]))
+            except: val_tol = 4
+            try: val_paso = int(float(df_freq.loc[idx_f, 'paso_meses'].iloc[0]))
+            except: val_paso = 1
+
+            m_tol = c1.number_input("Días de Tolerancia", min_value=0, value=val_tol)
+            m_paso = c2.number_input("Paso en Meses", min_value=0, value=val_paso)
+            if st.form_submit_button("ACTUALIZAR FRECUENCIA"):
+                df_freq.loc[idx_f] = [m_nom.strip(), str(m_tol), str(m_paso)]
+                guardar_csv(df_freq, "frecuencias.csv", "Mod Frecuencia")
+                st.toast("✅ ¡Frecuencia actualizada con éxito!", icon="🎉")
+                st.rerun()
+    elif acc_freq == "Eliminar" and not df_freq.empty:
+        st.warning("⚠️ Precaución: Si elimina una frecuencia en uso, asegúrese de reasignar los equipos.")
+        f_del = st.selectbox("Frecuencia a Eliminar:", df_freq['nombre_freq'].tolist(), key="select_del_freq")
+        if st.button("🗑️ ELIMINAR FRECUENCIA"):
+            df_freq = df_freq[df_freq['nombre_freq'].astype(str).str.strip() != str(f_del).strip()]
+            guardar_csv(df_freq, "frecuencias.csv", f"Eliminar Frecuencia {f_del}")
+            st.toast(f"✅ ¡Frecuencia {f_del} eliminada correctamente!", icon="🗑️")
+            st.rerun()
+    else: st.dataframe(df_freq, use_container_width=True, hide_index=True)
+
+# --- TAB TÉCNICOS ---
+with t_tec_tab:
+    acc_tec = st.radio("Acción Técnico:", ["Listado", "Alta", "Modificar", "Eliminar"], horizontal=True, key="tec_v55")
+    if acc_tec == "Alta":
+        with st.form("f_tec_a", clear_on_submit=True):
+            c1, c2 = st.columns(2)
+            t_cod = c1.text_input("Código de Técnico (ej. TEC-01)")
+            t_nom = c1.text_input("Nombre Completo")
+            t_esp = c2.text_input("Especialidad (ej. Mecánica / HVAC / Electricidad)")
+            t_est = c2.selectbox("Estado", ["Activo", "Inactivo"])
+            if st.form_submit_button("GUARDAR TÉCNICO"):
+                if t_nom.strip():
+                    new_tec = pd.DataFrame([[t_cod, t_nom, t_esp, t_est]], columns=COL_TEC)
+                    df_tec = pd.concat([df_tec, new_tec], ignore_index=True)
+                    guardar_csv(df_tec, "tecnicos.csv", "Alta Técnico")
+                    st.toast("✅ ¡Técnico guardado con éxito!", icon="🎉")
+                    st.rerun()
+                else: st.warning("El nombre del técnico es obligatorio.")
+    elif acc_tec == "Modificar" and not df_tec.empty:
+        t_ed = st.selectbox("Seleccione Técnico a Editar:", df_tec['nombre'].tolist())
+        idx_t = df_tec[df_tec['nombre'] == t_ed].index
+        with st.form("f_tec_e"):
+            c1, c2 = st.columns(2)
+            m_cod = c1.text_input("Código", value=df_tec.loc[idx_t, 'codigo_tec'].iloc[0])
+            m_nom = c1.text_input("Nombre", value=df_tec.loc[idx_t, 'nombre'].iloc[0])
+            m_esp = c2.text_input("Especialidad", value=df_tec.loc[idx_t, 'especialidad'].iloc[0])
+            est_actual = df_tec.loc[idx_t, 'estado'].iloc[0]
+            idx_est_def = 0 if est_actual == "Activo" else 1
+            m_est = c2.selectbox("Estado", ["Activo", "Inactivo"], index=idx_est_def)
+            if st.form_submit_button("ACTUALIZAR TÉCNICO"):
+                df_tec.loc[idx_t] = [m_cod, m_nom, m_esp, m_est]
+                guardar_csv(df_tec, "tecnicos.csv", "Mod Técnico")
+                st.toast("✅ ¡Técnico actualizado con éxito!", icon="🎉")
+                st.rerun()
+    elif acc_tec == "Eliminar" and not df_tec.empty:
+        st.warning("⚠️ Al eliminar un técnico, sus registros históricos permanecerán, pero ya no aparecerá en los selectores activos.")
+        t_del = st.selectbox("Técnico a Eliminar:", df_tec['nombre'].tolist(), key="select_del_tec")
+        if st.button("🗑️ ELIMINAR TÉCNICO"):
+            df_tec = df_tec[df_tec['nombre'].astype(str).str.strip() != str(t_del).strip()]
+            guardar_csv(df_tec, "tecnicos.csv", f"Eliminar Técnico {t_del}")
+            st.toast(f"✅ ¡Técnico {t_del} eliminado correctamente!", icon="🗑️")
+            st.rerun()
+    else: st.dataframe(df_tec, use_container_width=True, hide_index=True)
+
+# --- TAB PLAN MAESTRO (OPCIÓN A REFACTORIZADA) ---
+with t_plan:
+    if not df_e_c.empty:
+        df_h_plan = leer_csv("historial.csv", COL_HIST)
+        dict_fechas = dict(zip(df_h_plan['id_ot'].astype(str).str.strip(), df_h_plan['fecha_real'].astype(str)))
+        
+        dat_p = []
+        df_res_p = df_e_c.reset_index(drop=True)
+        df_equipos_global = leer_csv("equipos.csv", COL_EQ)
+        mapa_folios_global = generar_mapa_folios_anual(df_equipos_global, 2026)
+
+        for _, eq in df_res_p.iterrows():
+            eq_code = str(eq['codigo_eq']).strip()
+            if not eq_code or eq_code.lower() in ["nan", "none", ""]: continue
+            freq_val = str(eq['frecuencia'])
+            
+            occurs = calcular_ocurrencias_equipo(eq, 2026)
+            
+            grouped_by_month = {}
+            for occ in occurs:
+                m = occ['mes_n']
+                grouped_by_month.setdefault(m, []).append(occ)
+
+            max_occurs_in_month = max([len(v) for v in grouped_by_month.values()]) if grouped_by_month else 1
+
+            for sub_i in range(max_occurs_in_month):
+                suffix_tag = f" #{sub_i+1}" if max_occurs_in_month > 1 else ""
+                f1 = {"ID": eq_code, "Equipo": f"{str(eq['nombre'])}{suffix_tag}", "Frecuencia": freq_val, "Detalle": "Fecha Prevista"}
+                f2 = {"ID": "", "Equipo": "", "Frecuencia": "", "Detalle": "Fecha Realizada"}
+                f3 = {"ID": "", "Equipo": "", "Frecuencia": "", "Detalle": "ID de Orden"}
+
+                for m_idx in range(1, 13):
+                    m_label = MESES_L[m_idx - 1]
+                    list_m = grouped_by_month.get(m_idx, [])
+                    if sub_i < len(list_m):
+                        occ_item = list_m[sub_i]
+                        dt_prev = occ_item['fecha']
+                        f1[m_label] = dt_prev.strftime("%d/%m/%Y")
+                        fol_id = mapa_folios_global.get((eq_code, dt_prev), generar_folio_mp(m_idx, 1))
+                        f3[m_label] = fol_id
+                        f2[m_label] = dict_fechas.get(fol_id, "")
+                    else:
+                        f1[m_label], f2[m_label], f3[m_label] = "", "", ""
+
+                dat_p.extend([f1, f2, f3])
+
+        df_v = pd.DataFrame(dat_p).astype(str).replace(["nan", "None", ""], "")
+        st.dataframe(df_v, use_container_width=True, hide_index=True)
+        
+        class PDFMaestro(FPDF):
+            def __init__(self, empresa, logo):
+                super().__init__('L', 'mm', 'A4')
+                self.empresa = empresa
+                self.logo = logo
+                self.set_auto_page_break(auto=True, margin=35)
+
+            def header(self):
+                if self.logo:
+                    try: self.image(self.logo, 10, 8, 33)
+                    except Exception: pass
+                self.set_font('Arial', 'B', 15)
+                self.set_text_color(24, 54, 64)
+                self.cell(0, 12, limpiar_t(f'PLAN MAESTRO ANUAL 2026 - {self.empresa.upper()}'), 0, 1, 'C')
+                self.ln(4)
+                self.set_fill_color(24, 54, 64)
+                self.set_text_color(255)
+                self.set_font('Arial', 'B', 8)
+                self.cell(14, 9, "ID", 1, 0, 'C', True)
+                self.cell(38, 9, "EQUIPO", 1, 0, 'C', True)
+                self.cell(22, 9, "FRECUENCIA", 1, 0, 'C', True)
+                self.cell(26, 9, "DETALLE", 1, 0, 'C', True)
+                for m in MESES_L: 
+                    self.cell(14.6, 9, m, 1, 0, 'C', True)
+                self.ln()
+                self.set_text_color(0)
+
+            def footer(self):
+                self.set_y(-30)
+                self.set_font('Arial', '', 7)
+                self.set_text_color(50)
+                
+                self.cell(90, 4, limpiar_t("ELABORADO POR:"), 0, 0, 'L')
+                self.cell(90, 4, limpiar_t("REVISADO POR:"), 0, 0, 'L')
+                self.cell(97, 4, limpiar_t("APROBADO POR:"), 0, 1, 'L')
+                
+                self.ln(8)
+                
+                self.cell(90, 4, limpiar_t("Firma: ___________________________"), 0, 0, 'L')
+                self.cell(90, 4, limpiar_t("Firma: ___________________________"), 0, 0, 'L')
+                self.cell(97, 4, limpiar_t("Firma: ___________________________"), 0, 1, 'L')
+                
+                self.cell(90, 4, limpiar_t("Cargo: Resp. Mantenimiento"), 0, 0, 'L')
+                self.cell(90, 4, limpiar_t("Cargo: Supervisor de Planta / Calidad"), 0, 0, 'L')
+                self.cell(97, 4, limpiar_t("Cargo: Gerencia Operativa"), 0, 1, 'L')
+                
+                self.ln(2)
+                self.set_font('Arial', 'I', 7)
+                self.set_text_color(120)
+                txt_estatico = limpiar_t('PRODEXUS Cloud System - Documento Oficial de Auditoria - Pagina ')
+                self.cell(0, 4, f"{txt_estatico}{self.page_no()} / {{nb}}", 0, 0, 'R')
+
+        def render_pdf_maestro_premium():
+            pdf = PDFMaestro(emp_g, logo_f)
+            pdf.alias_nb_pages()
+            pdf.add_page()
+            for _, r in df_v.iterrows():
+                if r['Detalle'] == "Fecha Prevista": pdf.set_fill_color(242, 242, 242); style_f = 'B'
+                else: pdf.set_fill_color(255, 255, 255); style_f = ''
+                pdf.set_font('Arial', style_f, 7)
+                pdf.cell(14, 7, str(r['ID']), 1, 0, 'C', True)
+                pdf.cell(38, 7, limpiar_t(r['Equipo'])[:28], 1, 0, 'L', True)
+                pdf.cell(22, 7, limpiar_t(r['Frecuencia']), 1, 0, 'C', True)
+                pdf.cell(26, 7, r['Detalle'], 1, 0, 'C', True)
+                for m in MESES_L:
+                    val = str(r[m])
+                    if r['Detalle'] == "ID de Orden" and val: pdf.set_font('Arial', '', 4.5)
+                    else: pdf.set_font('Arial', '', 6.5)
+                    pdf.cell(14.6, 7, val, 1, 0, 'C', True)
+                pdf.ln()
+            return bytes(pdf.output())
+        
+        st.download_button("📥 DESCARGAR PLAN MAESTRO PDF", data=render_pdf_maestro_premium(), file_name=f"Plan_{emp_g}.pdf", mime="application/pdf")
+
+# --- TAB MANTENIMIENTOS PREVENTIVOS (MP) UNIFICADO ---
+with t_mp:
+    st.subheader(f"Gestión de Mantenimientos Preventivos - {emp_g}")
+    if df_e_c.empty:
+        st.info(f"ℹ️ No hay equipos registrados para la empresa **{emp_g}**.")
+    else:
+        sub_t_mp = st.radio("Gestión Preventiva:", ["📑 Emisión de Órdenes (MP)", "✅ Cierre de Preventivos", "📊 Historial de Preventivos"], horizontal=True, key="sub_mp")
+        
+        if sub_t_mp == "📑 Emisión de Órdenes (MP)":
+            m_s = st.selectbox("Mes de Emisión:", MESES_L, index=datetime.now().month-1, key="m_mp")
+            m_idx = MESES_L.index(m_s) + 1
+            
+            df_eq_all = leer_csv("equipos.csv", COL_EQ)
+            mapa_folios_global = generar_mapa_folios_anual(df_eq_all, 2026)
+            
+            ocurrencias_mes = []
+            for _, eq_item in df_e_c.iterrows():
+                eq_code = str(eq_item['codigo_eq']).strip()
+                occurs = calcular_ocurrencias_equipo(eq_item, 2026)
+                for occ in occurs:
+                    if occ['mes_n'] == m_idx:
+                        folio = mapa_folios_global.get((eq_code, occ['fecha']), generar_folio_mp(m_idx, 1))
+                        ocurrencias_mes.append({'eq': eq_item, 'occ': occ, 'folio': folio})
+
+            if ocurrencias_mes:
+                class PDFPreventivoUnico(FPDF):
+                    def header(self): pass
+                    def footer(self):
+                        self.set_y(-18)
+                        self.set_font("Arial", "", 9)
+                        self.cell(0, 5, "Técnico Responsable: _________________________     Firma: ___________________", ln=1, align="C")
+                        self.set_font("Arial", "I", 8)
+                        self.set_text_color(100)
+                        self.cell(0, 5, 'Página 1 / 1', 0, 0, 'R')
+
+                def generar_pdf_lote_consolidado():
+                    pdf = PDFPreventivoUnico()
+                    pdf.set_auto_page_break(auto=True, margin=15)
+                    for item in ocurrencias_mes:
+                        r = item['eq']
+                        folio_asig = item['folio']
+                        dt_prev_str = item['occ']['fecha'].strftime("%d/%m/%Y")
+                        
+                        pdf.add_page()
+                        if logo_f: 
+                            try: pdf.image(logo_f, 155, 10, 40)
+                            except Exception: pass
+                        pdf.set_font("Arial", "B", 16)
+                        pdf.cell(0, 12, "MANTENIMIENTO PREVENTIVO", ln=1)
+                        pdf.set_font("Arial", "B", 12)
+                        pdf.cell(0, 10, f"FOLIO: {folio_asig} | FECHA PROGRAMADA: {dt_prev_str}", ln=1)
+                        pdf.ln(5)
+                        pdf.set_font("Arial", "", 10)
+                        pdf.cell(0, 8, f"Cliente: {r['cliente']} | Equipo: {r['nombre']} ({r['sistema']})", ln=1)
+                        pdf.ln(5)
+                        pdf.set_font("Arial", "B", 10)
+                        pdf.cell(0, 7, "PROTOCOLO DE TAREAS:", ln=1)
+                        pdf.set_font("Arial", "", 10)
+                        for t in str(r['tareas']).splitlines():
+                            t_clean = limpiar_t(t.strip())
+                            if t_clean: pdf.cell(190, 7, f"[ ] {t_clean}", ln=1)
+                    return bytes(pdf.output())
+
+                st.download_button(f"📥 DESCARGAR TODAS LAS MP DE {m_s}", data=generar_pdf_lote_consolidado(), file_name=f"Protocolos_{m_s}_2026.pdf", mime="application/pdf")
+                st.markdown("---")
+
+                for item in ocurrencias_mes:
+                    r = item['eq']
+                    fol = item['folio']
+                    dt_str = item['occ']['fecha'].strftime("%d/%m/%Y")
+                    t_h = "".join([f"• {t.strip()}<br>" for t in str(r['tareas']).splitlines() if t.strip()])
+                    st.markdown(f"""
+                        <div style="background:white; padding:20px; border-radius:12px; border-left:6px solid {C_AZUL}; margin-bottom:15px; color:black; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);">
+                            <h3 style="margin:0; color:{C_OSCURO};">MP {fol} ({dt_str})</h3>
+                            <p style="margin:5px 0;"><b>Equipo:</b> {r["nombre"]} | <b>Sistema:</b> {r["sistema"]} | <b>Frecuencia:</b> {r["frecuencia"]}</p>
+                            <div style="background:{C_FONDO}; padding:10px; border-radius:8px; font-size:0.9em; border:1px solid #ddd;">
+                                <b>PROTOCOLOS:</b><br>{t_h}
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+            else: st.info(f"No hay mantenimientos programados para {m_s}.")
+            
+        elif sub_t_mp == "✅ Cierre de Preventivos":
+            st.markdown("### Cierre de Órdenes de Mantenimiento Preventivo")
+            mes_act_n = datetime.now().month
+            anio_act = datetime.now().year
+            
+            df_e_vivo = leer_csv("equipos.csv", COL_EQ)
+            df_h_actual = leer_csv("historial.csv", COL_HIST)
+            mapa_folios_global = generar_mapa_folios_anual(df_e_vivo, anio_act)
+            pendientes_lista = []
+            
+            for idx_abs, eq in df_e_vivo.iterrows():
+                if str(eq['cliente']).strip() == str(emp_g).strip():
+                    eq_code = str(eq['codigo_eq']).strip()
+                    occurs = calcular_ocurrencias_equipo(eq, anio_act)
+                    for occ in occurs:
+                        if occ['mes_n'] <= mes_act_n:
+                            fol_actual = mapa_folios_global.get((eq_code, occ['fecha']), generar_folio_mp(occ['mes_n'], 1, anio_act))
+                            reg_hist_cheq = df_h_actual[(df_h_actual['codigo_eq'].astype(str).str.strip() == eq_code) & (df_h_actual['id_ot'].astype(str).str.strip() == fol_actual)]
+                            if reg_hist_cheq.empty:
+                                dt_prev_str = occ['fecha'].strftime("%d/%m/%Y")
+                                pendientes_lista.append({
+                                    "label": f"[{MESES_L[occ['mes_n']-1]}] {fol_actual} ({dt_prev_str}) | {eq['nombre']}",
+                                    "id": eq_code, "idx": idx_abs, "folio": fol_actual, "mes_n": occ['mes_n'], "frec": eq['frecuencia']
+                                })
+
+            vistos = set()
+            pendientes_unicos = [p for p in pendientes_lista if p['folio'] not in vistos and not vistos.add(p['folio'])]
+
+            if pendientes_unicos:
+                labels = [p['label'] for p in pendientes_unicos]
+                with st.form("f_cierre_mp"):
+                    c_sel = st.selectbox("Seleccione equipo / orden preventiva pendiente:", labels)
+                    m = next(item for item in pendientes_unicos if item["label"] == c_sel)
+                    c1, c2 = st.columns(2)
+                    f_ejec = c1.date_input("Fecha Ejecución Real", value=datetime.now())
+                    tec_res = c2.selectbox("Técnico Ejecutor", lista_tecnicos_activos)
+                    obs_res = st.text_area("Hallazgos / Comentarios / Observaciones")
+                    
+                    if st.form_submit_button("REGISTRAR CIERRE PREVENTIVO"):
+                        if tec_res and "Sin Técnicos" not in tec_res:
+                            nueva_fila_h = pd.DataFrame([[str(m['id']), str(m['mes_n']), f_ejec.strftime("%d/%m/%Y"), str(m['folio']), str(obs_res), str(tec_res)]], columns=COL_HIST)
+                            df_h_actual = pd.concat([df_h_actual, nueva_fila_h], ignore_index=True)
+                            guardar_csv(df_h_actual, "historial.csv", f"Cierre {m['folio']}")
+                            st.toast(f"✅ ¡Cierre del folio {m['folio']} registrado con éxito!", icon="🎉")
+                            st.success(f"✅ ¡{m['folio']} registrado correctamente!")
+                            st.rerun()
+                        else: st.warning("Por favor, seleccione un técnico válido de la lista.")
+            else: st.success("🎉 ¡Excelente! No hay mantenimientos preventivos pendientes ni atrasados en este periodo.")
+            
+        else:
+            st.markdown("### Historial de Mantenimientos Preventivos Cerrados")
+            df_h_hist = leer_csv("historial.csv", COL_HIST)
+            if not df_h_hist.empty and not df_e_c.empty:
+                eqs_cliente_ids = [str(e).strip() for e in df_e_c['codigo_eq'].tolist()]
+                hist_emp = df_h_hist[df_h_hist['codigo_eq'].astype(str).str.strip().isin(eqs_cliente_ids)]
+                if not hist_emp.empty:
+                    st.dataframe(hist_emp, use_container_width=True, hide_index=True)
+                else: st.info("No hay historial de mantenimientos preventivos cerrados para esta empresa.")
+            else: st.info("No hay registros en el historial.")
+
+# --- TAB CORRECTIVOS ---
+with t_corr:
+    st.subheader(f"Mantenimientos Correctivos (Averías y Reparaciones) - {emp_g}")
+    if df_e_c.empty:
+        st.info(f"ℹ️ No hay equipos registrados para la empresa **{emp_g}**.")
+    else:
+        sub_t_corr = st.radio("Gestión Correctiva:", ["📑 Emitir Orden / Avería", "✅ Cierre de Correctivos", "📊 Historial de Correctivos"], horizontal=True, key="sub_corr")
+        df_corr_actual = leer_csv("correctivos.csv", COL_CORR)
+        
+        if sub_t_corr == "📑 Emitir Orden / Avería":
+            st.markdown("### Registro de Nueva Avería y Emisión de Orden (MC)")
+            with st.form("f_correctivo_emitir", clear_on_submit=True):
+                eq_nombres_dict = {f"{row['codigo_eq']} - {row['nombre']}": row['codigo_eq'] for _, row in df_e_c.iterrows()}
+                eq_sel_label = st.selectbox("Seleccione Equipo Averiado:", list(eq_nombres_dict.keys()))
+                eq_code_sel = eq_nombres_dict[eq_sel_label] if eq_sel_label else ""
+                
+                c_1, c_2 = st.columns(2)
+                f_emision = c_1.date_input("Fecha de Emisión / Reporte", value=datetime.now())
+                f_tentativa_c = c_2.date_input("Fecha Tentativa / Compromiso", value=datetime.now())
+                dias_tol_c = st.number_input("Tolerancia Máxima (días permitidos de atraso para eficiencia)", min_value=0, value=3, key="tol_c_input")
+                tec_asignado_c = st.selectbox("Técnico Asignado (Preliminar)", lista_tecnicos_activos, key="tec_asig_c")
+                desc_falla = st.text_area("Descripción de la Falla / Tareas a Realizar")
+                
+                if st.form_submit_button("EMITIR ORDEN CORRECTIVA"):
+                    if desc_falla.strip():
+                        mes_c = f_emision.month
+                        anio_c = f_emision.year
+                        prefix_mc = f"MC-{anio_c}-{mes_c:02d}-"
+                        corr_mc_num = len(df_corr_actual[df_corr_actual['id_ot'].astype(str).str.startswith(prefix_mc)]) + 1 if not df_corr_actual.empty and 'id_ot' in df_corr_actual.columns else 1
+                        folio_mc_gen = generar_folio_mc(mes_c, corr_mc_num, anio_c)
+                        
+                        nueva_fila_corr = pd.DataFrame([[
+                            str(folio_mc_gen), str(eq_code_sel), str(emp_g), f_emision.strftime("%d/%m/%Y"),
+                            str(desc_falla), f_tentativa_c.strftime("%d/%m/%Y"), str(dias_tol_c), "Pendiente", "", "", str(tec_asignado_c)
+                        ]], columns=COL_CORR)
+                        
+                        df_corr_actual = pd.concat([df_corr_actual, nueva_fila_corr], ignore_index=True)
+                        guardar_csv(df_corr_actual, "correctivos.csv", f"Emisión Correctivo {folio_mc_gen}")
+                        st.toast(f"✅ ¡Orden {folio_mc_gen} emitida con éxito!", icon="🎉")
+                        st.success(f"✅ ¡Orden Correctiva **{folio_mc_gen}** generada correctamente!")
+                        st.rerun()
+                    else: st.warning("Por favor, describa la falla reportada.")
+
+            if not df_corr_actual.empty:
+                pendientes_emision = df_corr_actual[(df_corr_actual['cliente'].astype(str).str.strip() == str(emp_g).strip()) & (df_corr_actual['estado'].astype(str).str.strip() == "Pendiente")]
+                if not pendientes_emision.empty:
+                    st.markdown("---")
+                    st.markdown("#### 📥 Órdenes Correctivas Emitidas (Descargar para Imprimir)")
+                    for _, row_p in pendientes_emision.iterrows():
+                        eq_row = df_e_c[df_e_c['codigo_eq'].astype(str).str.strip() == str(row_p['codigo_eq']).strip()]
+                        nom_eq_str = eq_row.iloc[0]['nombre'] if not eq_row.empty else "Equipo"
+                        tec_asig_txt = row_p.get('tecnico', 'Sin asignar')
+                        
+                        class PDFCorrectivoMultiPage(FPDF):
+                            def __init__(self, folio_ot):
+                                super().__init__()
+                                self.folio_ot = folio_ot
+                            def header(self):
+                                if logo_f: 
+                                    try: self.image(logo_f, 155, 10, 40)
+                                    except Exception: pass
+                                self.set_font("Arial", "B", 15)
+                                self.cell(0, 10, "ORDEN DE MANTENIMIENTO CORRECTIVO", ln=1)
+                                self.set_font("Arial", "B", 11)
+                                self.cell(0, 7, f"FOLIO: {self.folio_ot}", ln=1)
+                                self.ln(5)
+                            def footer(self):
+                                self.set_y(-18)
+                                self.set_font("Arial", "", 9)
+                                self.cell(0, 5, "Técnico Responsable: _________________________     Firma: ___________________", ln=1, align="C")
+                                self.set_font("Arial", "I", 8)
+                                self.set_text_color(100)
+                                self.cell(0, 5, 'Página 1 / 1', 0, 0, 'R')
+
+                        def generar_pdf_orden_correctiva(r_p, eq_nombre, t_asig):
+                            pdf = PDFCorrectivoMultiPage(r_p['id_ot'])
+                            pdf.set_auto_page_break(auto=True, margin=15)
+                            pdf.add_page()
+                            pdf.set_font("Arial", "", 10)
+                            pdf.cell(0, 6, f"Cliente: {r_p['cliente']} | Fecha Emisión: {r_p['fecha_emision']}", ln=1)
+                            pdf.cell(0, 6, f"Fecha Tentativa Compromiso: {r_p.get('fecha_tentativa', 'N/D')} (Tolerancia: {r_p.get('dias_tolerancia', '0')} días)", ln=1)
+                            pdf.cell(0, 6, f"Equipo ID: {r_p['codigo_eq']} - {eq_nombre} | Técnico Asignado: {t_asig}", ln=1)
+                            pdf.ln(5)
+                            pdf.set_font("Arial", "B", 10)
+                            pdf.cell(0, 6, "DESCRIPCIÓN DE LA FALLA / TAREAS SOLICITADAS:", ln=1)
+                            pdf.set_font("Arial", "", 10)
+                            for l_t in str(r_p['falla_reportada']).splitlines():
+                                l_clean = limpiar_t(l_t.strip())
+                                if l_clean: pdf.cell(190, 6, f"- {l_clean}", ln=1)
+                            pdf.ln(5)
+                            pdf.set_font("Arial", "B", 10)
+                            pdf.cell(0, 6, "ACCIONES REALIZADAS / REPUESTOS UTILIZADOS:", ln=1)
+                            pdf.ln(2)
+                            y_start = pdf.get_y()
+                            pdf.rect(10, y_start, 190, 80)
+                            return bytes(pdf.output())
+
+                        col_d1, col_d2 = st.columns([3, 1])
+                        col_d1.write(f"**{row_p['id_ot']}** - Equipo: {nom_eq_str} | Asignado: {tec_asig_txt} | Falla: {row_p['falla_reportada'][:30]}...")
+                        col_d2.download_button("📥 DESCARGAR PDF", data=generar_pdf_orden_correctiva(row_p, nom_eq_str, tec_asig_txt), file_name=f"Orden_{row_p['id_ot']}.pdf", mime="application/pdf", key=f"btn_dl_mc_{row_p['id_ot']}")
+                        
+        elif sub_t_corr == "✅ Cierre de Correctivos":
+            st.markdown("### Cierre de Órdenes Correctivas Ejecutadas")
+            if not df_corr_actual.empty:
+                pendientes_cierre = df_corr_actual[(df_corr_actual['cliente'].astype(str).str.strip() == str(emp_g).strip()) & (df_corr_actual['estado'].astype(str).str.strip() == "Pendiente")]
+                if not pendientes_cierre.empty:
+                    opts_cierre = [f"{r['id_ot']} | Asignado: {r.get('tecnico','N/D')} | {r['falla_reportada'][:30]}" for _, r in pendientes_cierre.iterrows()]
+                    with st.form("f_cierre_correctivo"):
+                        sel_cierre_lbl = st.selectbox("Seleccione Orden Pendiente:", opts_cierre)
+                        ot_sel_id = sel_cierre_lbl.split(" | ")[0]
+                        
+                        row_ot_match = pendientes_cierre[pendientes_cierre['id_ot'].astype(str).str.strip() == ot_sel_id]
+                        tec_sugerido = row_ot_match.iloc[0].get('tecnico', '') if not row_ot_match.empty else ""
+                        idx_def_tec = lista_tecnicos_activos.index(tec_sugerido) if tec_sugerido in lista_tecnicos_activos else 0
+
+                        c1, c2 = st.columns(2)
+                        f_real_c = c1.date_input("Fecha Real de Reparación", value=datetime.now())
+                        tec_c = c2.selectbox("Técnico Ejecutor (Confirmar/Reasignar)", lista_tecnicos_activos, index=idx_def_tec)
+                        acc_realizadas = st.text_area("Acciones Realizadas / Repuestos Utilizados")
+                        
+                        if st.form_submit_button("REGISTRAR CIERRE CORRECTIVO"):
+                            if tec_c and "Sin Técnicos" not in tec_c and acc_realizadas.strip():
+                                idx_row = df_corr_actual[df_corr_actual['id_ot'].astype(str).str.strip() == ot_sel_id].index
+                                if not idx_row.empty:
+                                    f_tent_str = df_corr_actual.loc[idx_row, 'fecha_tentativa'].iloc[0]
+                                    d_tol_val = int(float(df_corr_actual.loc[idx_row, 'dias_tolerancia'].iloc[0]))
+                                    
+                                    f_tent_dt = pd.to_datetime(f_tent_str, format="%d/%m/%Y", errors='coerce')
+                                    estado_cumplimiento = "Cerrada"
+                                    if pd.notnull(f_tent_dt):
+                                        dif_dias_c = (f_real_c - f_tent_dt.date()).days
+                                        if dif_dias_c <= d_tol_val: estado_cumplimiento = "Cerrada (A tiempo)"
+                                        else: estado_cumplimiento = "Cerrada (Fuera de término)"
+
+                                    df_corr_actual.loc[idx_row, 'estado'] = estado_cumplimiento
+                                    df_corr_actual.loc[idx_row, 'fecha_real'] = f_real_c.strftime("%d/%m/%Y")
+                                    df_corr_actual.loc[idx_row, 'acciones_realizadas'] = acc_realizadas
+                                    df_corr_actual.loc[idx_row, 'tecnico'] = tec_c
+                                    
+                                    guardar_csv(df_corr_actual, "correctivos.csv", f"Cierre Correctivo {ot_sel_id}")
+                                    st.toast(f"✅ ¡Orden {ot_sel_id} cerrada con éxito!", icon="🎉")
+                                    st.success(f"✅ ¡Mantenimiento correctivo **{ot_sel_id}** cerrado como **{estado_cumplimiento}** por el técnico **{tec_c}**!")
+                                    st.rerun()
+                            else: st.warning("Por favor, seleccione un técnico válido y describa las acciones realizadas.")
+                else: st.info("No hay órdenes correctivas pendientes de cierre para esta empresa.")
+            else: st.info("No hay registros correctivos.")
+        else:
+            st.markdown("### Historial de Mantenimientos Correctivos Cerrados")
+            if not df_corr_actual.empty:
+                cerradas_emp = df_corr_actual[(df_corr_actual['cliente'].astype(str).str.strip() == str(emp_g).strip()) & (df_corr_actual['estado'].astype(str).str.startswith("Cerrada"))]
+                if not cerradas_emp.empty: st.dataframe(cerradas_emp, use_container_width=True, hide_index=True)
+                else: st.info("No hay mantenimientos correctivos cerrados.")
+            else: st.info("No hay registros.")
+
+# --- TAB ORDENES DE TRABAJO (OT) ---
+with t_ot_tab:
+    st.subheader(f"Órdenes de Trabajo - Proyectos, Instalaciones y Mejoras ({emp_g})")
+    if df_e_c.empty:
+        st.info(f"ℹ️ No hay equipos/ubicaciones registrados para la empresa **{emp_g}**.")
+    else:
+        sub_t_ot = st.radio("Gestión de OT:", ["📑 Emitir Orden de Trabajo", "✅ Cierre de OT", "📊 Historial de OT"], horizontal=True, key="sub_ot")
+        df_ot_actual = leer_csv("ordenes_trabajo.csv", COL_OT)
+        
+        if sub_t_ot == "📑 Emitir Orden de Trabajo":
+            st.markdown("### Emisión de Nueva Orden de Trabajo (Instalaciones / Proyectos)")
+            with st.form("f_ot_emitir", clear_on_submit=True):
+                eq_nombres_dict = {f"{row['codigo_eq']} - {row['nombre']}": row['codigo_eq'] for _, row in df_e_c.iterrows()}
+                eq_sel_label = st.selectbox("Equipo / Ubicación Asociada:", list(eq_nombres_dict.keys()))
+                eq_code_sel = eq_nombres_dict[eq_sel_label] if eq_sel_label else ""
+                
+                c_1, c_2 = st.columns(2)
+                f_emision_ot = c_1.date_input("Fecha de Emisión", value=datetime.now())
+                f_tentativa_ot = c_2.date_input("Fecha Tentativa / Compromiso de Entrega", value=datetime.now())
+                dias_tol_ot = st.number_input("Tolerancia Máxima (días permitidos para eficiencia)", min_value=0, value=5, key="tol_ot_input")
+                tec_asignado_ot = st.selectbox("Técnico Asignado (Preliminar)", lista_tecnicos_activos, key="tec_asig_ot")
+                trabajo_sol = st.text_area("Descripción del Trabajo Solicitado (Ej: Instalar aire acondicionado)")
+                
+                if st.form_submit_button("EMITIR ORDEN DE TRABAJO"):
+                    if trabajo_sol.strip():
+                        mes_ot = f_emision_ot.month
+                        anio_ot = f_emision_ot.year
+                        prefix_ot = f"OT-{anio_ot}-{mes_ot:02d}-"
+                        corr_ot_num = len(df_ot_actual[df_ot_actual['id_ot'].astype(str).str.startswith(prefix_ot)]) + 1 if not df_ot_actual.empty and 'id_ot' in df_ot_actual.columns else 1
+                        folio_ot_gen = generar_folio_ot(mes_ot, corr_ot_num, anio_ot)
+                        
+                        nueva_fila_ot = pd.DataFrame([[
+                            str(folio_ot_gen), str(eq_code_sel), str(emp_g), f_emision_ot.strftime("%d/%m/%Y"),
+                            str(trabajo_sol), f_tentativa_ot.strftime("%d/%m/%Y"), str(dias_tol_ot), "Pendiente", "", "", str(tec_asignado_ot)
+                        ]], columns=COL_OT)
+                        
+                        df_ot_actual = pd.concat([df_ot_actual, nueva_fila_ot], ignore_index=True)
+                        guardar_csv(df_ot_actual, "ordenes_trabajo.csv", f"Emisión OT {folio_ot_gen}")
+                        st.toast(f"✅ ¡Orden de Trabajo {folio_ot_gen} emitida con éxito!", icon="🎉")
+                        st.success(f"✅ ¡Orden de Trabajo **{folio_ot_gen}** generada correctamente!")
+                        st.rerun()
+                    else: st.warning("Por favor, describa el trabajo solicitado.")
+
+            if not df_ot_actual.empty:
+                pendientes_ot = df_ot_actual[(df_ot_actual['cliente'].astype(str).str.strip() == str(emp_g).strip()) & (df_ot_actual['estado'].astype(str).str.strip() == "Pendiente")]
+                if not pendientes_ot.empty:
+                    st.markdown("---")
+                    st.markdown("#### 📥 Órdenes de Trabajo Emitidas (Descargar para Imprimir)")
+                    for _, row_p in pendientes_ot.iterrows():
+                        eq_row = df_e_c[df_e_c['codigo_eq'].astype(str).str.strip() == str(row_p['codigo_eq']).strip()]
+                        nom_eq_str = eq_row.iloc[0]['nombre'] if not eq_row.empty else "Equipo / Área"
+                        tec_asig_txt = row_p.get('tecnico', 'Sin asignar')
+                        
+                        class PDFOTMultiPage(FPDF):
+                            def __init__(self, folio_ot):
+                                super().__init__()
+                                self.folio_ot = folio_ot
+                            def header(self):
+                                if logo_f: 
+                                    try: self.image(logo_f, 155, 10, 40)
+                                    except Exception: pass
+                                self.set_font("Arial", "B", 15)
+                                self.cell(0, 10, "ORDEN DE TRABAJO (MEJORA / INSTALACIÓN)", ln=1)
+                                self.set_font("Arial", "B", 11)
+                                self.cell(0, 7, f"FOLIO: {self.folio_ot}", ln=1)
+                                self.ln(5)
+                            def footer(self):
+                                self.set_y(-18)
+                                self.set_font("Arial", "", 9)
+                                self.cell(0, 5, "Técnico Responsable: _________________________     Firma: ___________________", ln=1, align="C")
+                                self.set_font("Arial", "I", 8)
+                                self.set_text_color(100)
+                                self.cell(0, 5, 'Página 1 / 1', 0, 0, 'R')
+
+                        def generar_pdf_ot(r_p, eq_nombre, t_asig):
+                            pdf = PDFOTMultiPage(r_p['id_ot'])
+                            pdf.set_auto_page_break(auto=True, margin=15)
+                            pdf.add_page()
+                            pdf.set_font("Arial", "", 10)
+                            pdf.cell(0, 6, f"Cliente: {r_p['cliente']} | Fecha Emisión: {r_p['fecha_emision']}", ln=1)
+                            pdf.cell(0, 6, f"Fecha Tentativa Compromiso: {r_p.get('fecha_tentativa', 'N/D')} (Tolerancia: {r_p.get('dias_tolerancia', '0')} días)", ln=1)
+                            pdf.cell(0, 6, f"Ubicación / Equipo ID: {r_p['codigo_eq']} - {eq_nombre} | Asignado: {t_asig}", ln=1)
+                            pdf.ln(5)
+                            pdf.set_font("Arial", "B", 10)
+                            pdf.cell(0, 6, "DESCRIPCIÓN DEL TRABAJO SOLICITADO:", ln=1)
+                            pdf.set_font("Arial", "", 10)
+                            for l_t in str(r_p['trabajo_solicitado']).splitlines():
+                                l_clean = limpiar_t(l_t.strip())
+                                if l_clean: pdf.cell(190, 6, f"- {l_clean}", ln=1)
+                            pdf.ln(5)
+                            pdf.set_font("Arial", "B", 10)
+                            pdf.cell(0, 6, "ACCIONES REALIZADAS / MATERIALES UTILIZADOS:", ln=1)
+                            pdf.ln(2)
+                            y_start = pdf.get_y()
+                            pdf.rect(10, y_start, 190, 80)
+                            return bytes(pdf.output())
+
+                        col_d1, col_d2 = st.columns([3, 1])
+                        col_d1.write(f"**{row_p['id_ot']}** - Equipo: {nom_eq_str} | Asignado: {tec_asig_txt} | Trabajo: {row_p['trabajo_solicitado'][:30]}...")
+                        col_d2.download_button("📥 DESCARGAR PDF", data=generar_pdf_ot(row_p, nom_eq_str, tec_asig_txt), file_name=f"OT_{row_p['id_ot']}.pdf", mime="application/pdf", key=f"btn_dl_ot_{row_p['id_ot']}")
+                        
+        elif sub_t_ot == "✅ Cierre de OT":
+            st.markdown("### Cierre de Órdenes de Trabajo Ejecutadas")
+            if not df_ot_actual.empty:
+                pendientes_ot_cierre = df_ot_actual[(df_ot_actual['cliente'].astype(str).str.strip() == str(emp_g).strip()) & (df_ot_actual['estado'].astype(str).str.strip() == "Pendiente")]
+                if not pendientes_ot_cierre.empty:
+                    opts_cierre_ot = [f"{r['id_ot']} | Asignado: {r.get('tecnico','N/D')} | {r['trabajo_solicitado'][:30]}" for _, r in pendientes_ot_cierre.iterrows()]
+                    with st.form("f_cierre_ot"):
+                        sel_cierre_ot_lbl = st.selectbox("Seleccione Orden de Trabajo Pendiente:", opts_cierre_ot)
+                        ot_sel_id = sel_cierre_ot_lbl.split(" | ")[0]
+                        
+                        row_ot_match = pendientes_ot_cierre[pendientes_ot_cierre['id_ot'].astype(str).str.strip() == ot_sel_id]
+                        tec_sugerido_ot = row_ot_match.iloc[0].get('tecnico', '') if not row_ot_match.empty else ""
+                        idx_def_tec_ot = lista_tecnicos_activos.index(tec_sugerido_ot) if tec_sugerido_ot in lista_tecnicos_activos else 0
+
+                        c1, c2 = st.columns(2)
+                        f_real_ot = c1.date_input("Fecha Real de Finalización", value=datetime.now())
+                        tec_ot = c2.selectbox("Técnico / Responsable Ejecutor (Confirmar/Reasignar)", lista_tecnicos_activos, index=idx_def_tec_ot)
+                        acc_realizadas_ot = st.text_area("Acciones Realizadas / Materiales Utilizados")
+                        
+                        if st.form_submit_button("REGISTRAR CIERRE OT"):
+                            if tec_ot and "Sin Técnicos" not in tec_ot and acc_realizadas_ot.strip():
+                                idx_row = df_ot_actual[df_ot_actual['id_ot'].astype(str).str.strip() == ot_sel_id].index
+                                if not idx_row.empty:
+                                    f_tent_str = df_ot_actual.loc[idx_row, 'fecha_tentativa'].iloc[0]
+                                    d_tol_val = int(float(df_ot_actual.loc[idx_row, 'dias_tolerancia'].iloc[0]))
+                                    
+                                    f_tent_dt = pd.to_datetime(f_tent_str, format="%d/%m/%Y", errors='coerce')
+                                    estado_cumplimiento = "Cerrada"
+                                    if pd.notnull(f_tent_dt):
+                                        dif_dias_ot = (f_real_ot - f_tent_dt.date()).days
+                                        if dif_dias_ot <= d_tol_val: estado_cumplimiento = "Cerrada (A tiempo)"
+                                        else: estado_cumplimiento = "Cerrada (Fuera de término)"
+
+                                    df_ot_actual.loc[idx_row, 'estado'] = estado_cumplimiento
+                                    df_ot_actual.loc[idx_row, 'fecha_real'] = f_real_ot.strftime("%d/%m/%Y")
+                                    df_ot_actual.loc[idx_row, 'acciones_realizadas'] = acc_realizadas_ot
+                                    df_ot_actual.loc[idx_row, 'tecnico'] = tec_ot
+                                    
+                                    guardar_csv(df_ot_actual, "ordenes_trabajo.csv", f"Cierre OT {ot_sel_id}")
+                                    st.toast(f"✅ ¡Orden de Trabajo {ot_sel_id} cerrada con éxito!", icon="🎉")
+                                    st.success(f"✅ ¡Orden de Trabajo **{ot_sel_id}** cerrada como **{estado_cumplimiento}** por el técnico **{tec_ot}**!")
+                                    st.rerun()
+                            else: st.warning("Por favor, seleccione un técnico válido y describa las acciones realizadas.")
+                else: st.info("No hay órdenes de trabajo pendientes de cierre para esta empresa.")
+            else: st.info("No hay registros de órdenes de trabajo.")
+        else:
+            st.markdown("### Historial de Órdenes de Trabajo Cerradas")
+            if not df_ot_actual.empty:
+                cerradas_ot_emp = df_ot_actual[(df_ot_actual['cliente'].astype(str).str.strip() == str(emp_g).strip()) & (df_ot_actual['estado'].astype(str).str.startswith("Cerrada"))]
+                if not cerradas_ot_emp.empty: st.dataframe(cerradas_ot_emp, use_container_width=True, hide_index=True)
+                else: st.info("No hay órdenes de trabajo cerradas.")
+            else: st.info("No hay registros.")

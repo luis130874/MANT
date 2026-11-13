@@ -1,0 +1,6 @@
+{
+  "name": "PRODEXUS Enterprise CMMS",
+  "description": "Sistema integral de gestión de mantenimiento industrial, planes preventivos anuales, órdenes correctivas (MC), órdenes de trabajo (OT) y KPIs de cumplimiento técnico.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,144 @@
+{
+  "entities": {
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Registro explícito de Administrador General del CMMS.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 200 },
+        "nombre": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "nombre", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Perfil activo de usuario autenticado con su empresa asignada y permisos granulares RBAC.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 200 },
+        "nombre": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "cargo": { "type": "string", "maxLength": 120 },
+        "role": { "type": "string", "enum": ["super_admin", "company_admin", "company_user"] },
+        "empresaCodigo": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]*$" },
+        "empresaNombre": { "type": "string", "maxLength": 200 },
+        "permisos": { "type": "object" },
+        "activo": { "type": "boolean" },
+        "inviteId": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "nombre", "role", "empresaCodigo", "empresaNombre", "permisos", "activo", "createdAt", "updatedAt"]
+    },
+    "UserInvite": {
+      "title": "UserInvite",
+      "description": "Invitación / pre-autorización de acceso por correo y empresa con permisos asignados.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 200 },
+        "nombre": { "type": "string", "minLength": 1, "maxLength": 150 },
+        "cargo": { "type": "string", "maxLength": 120 },
+        "role": { "type": "string", "enum": ["super_admin", "company_admin", "company_user"] },
+        "empresaCodigo": { "type": "string", "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]*$" },
+        "empresaNombre": { "type": "string", "maxLength": 200 },
+        "permisos": { "type": "object" },
+        "activo": { "type": "boolean" },
+        "claimedUid": { "type": "string", "maxLength": 128 },
+        "createdByUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "email", "nombre", "role", "empresaCodigo", "empresaNombre", "permisos", "activo", "createdByUid", "createdAt", "updatedAt"]
+    },
+    "Empresa": {
+      "title": "Empresa",
+      "description": "Empresa / Planta industrial cliente registrada en el CMMS.",
+      "type": "object",
+      "properties": {
+        "codigo": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "nombre": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "rut": { "type": "string", "maxLength": 40 },
+        "direccion": { "type": "string", "maxLength": 300 },
+        "telefono": { "type": "string", "maxLength": 60 },
+        "correo": { "type": "string", "maxLength": 200 },
+        "logo": { "type": "string", "maxLength": 450000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["codigo", "nombre", "rut", "direccion", "telefono", "correo", "createdAt", "updatedAt"]
+    },
+    "EmpresaModuloDatos": {
+      "title": "EmpresaModuloDatos",
+      "description": "Colección de datos operativos de una empresa para un módulo CMMS específico.",
+      "type": "object",
+      "properties": {
+        "empresaCodigo": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "modulo": {
+          "type": "string",
+          "enum": ["equipos", "instrumentos", "historial", "correctivos", "ordenesTrabajo", "calibraciones", "repuestos", "movimientosRepuestos"]
+        },
+        "items": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128 }
+      },
+      "required": ["empresaCodigo", "modulo", "items", "updatedAt", "updatedBy"]
+    },
+    "EmpresaUsuariosRoster": {
+      "title": "EmpresaUsuariosRoster",
+      "description": "Directorio de usuarios e invitaciones pertenecientes a una empresa.",
+      "type": "object",
+      "properties": {
+        "empresaCodigo": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "miembros": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128 }
+      },
+      "required": ["empresaCodigo", "miembros", "updatedAt", "updatedBy"]
+    },
+    "CatalogoGlobal": {
+      "title": "CatalogoGlobal",
+      "description": "Catálogos técnicos globales (Sistemas, Frecuencias, Cuadrilla de Técnicos).",
+      "type": "object",
+      "properties": {
+        "catalogo": { "type": "string", "enum": ["sistemas", "frecuencias", "tecnicos"] },
+        "items": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "minLength": 1, "maxLength": 128 }
+      },
+      "required": ["catalogo", "items", "updatedAt", "updatedBy"]
+    }
+  },
+  "firestore": {
+    "/admins/{uid}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Administradores generales registrados."
+    },
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Perfiles activos de usuarios autenticados con empresa y permisos."
+    },
+    "/user_invites/{inviteId}": {
+      "schema": { "$ref": "#/entities/UserInvite" },
+      "description": "Autorizaciones de acceso por correo electrónico creadas por Super Admin o Admin de Empresa."
+    },
+    "/empresas/{empresaId}": {
+      "schema": { "$ref": "#/entities/Empresa" },
+      "description": "Empresas / Plantas industriales registradas."
+    },
+    "/empresas/{empresaId}/datos/{moduloId}": {
+      "schema": { "$ref": "#/entities/EmpresaModuloDatos" },
+      "description": "Datos operativos aislados por empresa."
+    },
+    "/empresas/{empresaId}/config/{docId}": {
+      "schema": { "$ref": "#/entities/EmpresaUsuariosRoster" },
+      "description": "Directorio de miembros y permisos administrado por la empresa."
+    },
+    "/catalogos/{catalogoId}": {
+      "schema": { "$ref": "#/entities/CatalogoGlobal" },
+      "description": "Catálogos globales de sistemas, frecuencias y técnicos."
+    }
+  }
+}

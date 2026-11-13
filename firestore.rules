@@ -1,0 +1,458 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Identity & Validation Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function authEmail() {
+      return ('email' in request.auth.token && request.auth.token.email is string)
+        ? request.auth.token.email.lower()
+        : '';
+    }
+
+    function isVerified() {
+      return isSignedIn() &&
+        request.auth.token.email_verified == true &&
+        authEmail().size() > 0;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isBootstrapSuperAdmin() {
+      return isVerified() && authEmail() == 'luismarcelosanchez1974@gmail.com';
+    }
+
+    function userExists() {
+      return isVerified() && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isSuperAdmin() {
+      return isBootstrapSuperAdmin() ||
+        (isVerified() && exists(/databases/$(database)/documents/admins/$(request.auth.uid))) ||
+        (userExists() && userDoc().activo == true && userDoc().role == 'super_admin');
+    }
+
+    function isActiveUser() {
+      return isSuperAdmin() || (userExists() && userDoc().activo == true);
+    }
+
+    function isCompanyMember(empresaId) {
+      return isSuperAdmin() || (
+        userExists() &&
+        userDoc().activo == true &&
+        userDoc().empresaCodigo == empresaId
+      );
+    }
+
+    function isCompanyAdmin(empresaId) {
+      return isSuperAdmin() || (
+        userExists() &&
+        userDoc().activo == true &&
+        userDoc().role == 'company_admin' &&
+        userDoc().empresaCodigo == empresaId
+      );
+    }
+
+    function canWriteCompanyData(empresaId) {
+      return isSuperAdmin() || (
+        userExists() &&
+        userDoc().activo == true &&
+        userDoc().empresaCodigo == empresaId && (
+          userDoc().role == 'company_admin' ||
+          (
+            userDoc().permisos is map &&
+            userDoc().permisos.acciones is map && (
+              userDoc().permisos.acciones.crear_editar == true ||
+              userDoc().permisos.acciones.emitir_ordenes == true ||
+              userDoc().permisos.acciones.cerrar_ordenes == true ||
+              userDoc().permisos.acciones.gestionar_stock == true ||
+              userDoc().permisos.acciones.eliminar == true
+            )
+          )
+        )
+      );
+    }
+
+    function canEditCatalog(catalogoId) {
+      return isSuperAdmin() || (
+        userExists() &&
+        userDoc().activo == true && (
+          userDoc().role == 'company_admin' ||
+          (
+            userDoc().permisos is map &&
+            userDoc().permisos.modulos is map &&
+            userDoc().permisos.acciones is map && (
+              (catalogoId == 'tecnicos' && userDoc().permisos.modulos.tecnicos == true && (userDoc().permisos.acciones.crear_editar == true || userDoc().permisos.acciones.eliminar == true)) ||
+              (catalogoId in ['sistemas', 'frecuencias'] && userDoc().permisos.modulos.configuracion == true && (userDoc().permisos.acciones.crear_editar == true || userDoc().permisos.acciones.eliminar == true))
+            )
+          )
+        )
+      );
+    }
+
+    // 3. Entity Validation Blueprints (Anti-Update-Gap & Type/Size Guards)
+    function isValidPermisos(p) {
+      return p is map &&
+        p.keys().hasAll(['modulos', 'acciones']) &&
+        p.keys().hasOnly(['modulos', 'acciones']) &&
+        p.modulos is map &&
+        p.modulos.keys().hasOnly([
+          'dashboard', 'plan', 'calibracion', 'preventivos', 'correctivos',
+          'ordenes', 'equipos', 'instrumentos', 'repuestos', 'clientes',
+          'tecnicos', 'configuracion', 'usuarios'
+        ]) &&
+        p.acciones is map &&
+        p.acciones.keys().hasOnly([
+          'crear_editar', 'emitir_ordenes', 'cerrar_ordenes',
+          'eliminar', 'gestionar_stock', 'imprimir_pdf'
+        ]);
+    }
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'email', 'nombre', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'nombre', 'createdAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.nombre is string && data.nombre.size() >= 1 && data.nombre.size() <= 150 &&
+        data.createdAt is timestamp;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['uid', 'email', 'nombre', 'role', 'empresaCodigo', 'empresaNombre', 'permisos', 'activo', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'nombre', 'cargo', 'role', 'empresaCodigo', 'empresaNombre', 'permisos', 'activo', 'inviteId', 'createdAt', 'updatedAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.nombre is string && data.nombre.size() >= 1 && data.nombre.size() <= 150 &&
+        (!('cargo' in data) || (data.cargo is string && data.cargo.size() <= 120)) &&
+        data.role in ['super_admin', 'company_admin', 'company_user'] &&
+        data.empresaCodigo is string && data.empresaCodigo.size() <= 64 && data.empresaCodigo.matches('^[a-zA-Z0-9_\\-]*$') &&
+        data.empresaNombre is string && data.empresaNombre.size() <= 200 &&
+        isValidPermisos(data.permisos) &&
+        data.activo is bool &&
+        (!('inviteId' in data) || (data.inviteId is string && data.inviteId.size() <= 128)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidUserInvite(data) {
+      return data.keys().hasAll(['id', 'email', 'nombre', 'role', 'empresaCodigo', 'empresaNombre', 'permisos', 'activo', 'createdByUid', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['id', 'email', 'nombre', 'cargo', 'role', 'empresaCodigo', 'empresaNombre', 'permisos', 'activo', 'claimedUid', 'createdByUid', 'createdAt', 'updatedAt']) &&
+        data.id is string && data.id.size() >= 1 && data.id.size() <= 128 && data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 200 &&
+        data.nombre is string && data.nombre.size() >= 1 && data.nombre.size() <= 150 &&
+        (!('cargo' in data) || (data.cargo is string && data.cargo.size() <= 120)) &&
+        data.role in ['super_admin', 'company_admin', 'company_user'] &&
+        data.empresaCodigo is string && data.empresaCodigo.size() <= 64 && data.empresaCodigo.matches('^[a-zA-Z0-9_\\-]*$') &&
+        data.empresaNombre is string && data.empresaNombre.size() <= 200 &&
+        isValidPermisos(data.permisos) &&
+        data.activo is bool &&
+        (!('claimedUid' in data) || (data.claimedUid is string && data.claimedUid.size() <= 128)) &&
+        data.createdByUid is string && data.createdByUid.size() >= 1 && data.createdByUid.size() <= 128 &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function matchesActiveInvite(data, inv) {
+      return inv.activo == true &&
+        inv.email.lower() == authEmail() &&
+        data.email.lower() == inv.email.lower() &&
+        data.role == inv.role &&
+        data.empresaCodigo == inv.empresaCodigo &&
+        data.empresaNombre == inv.empresaNombre &&
+        data.permisos == inv.permisos &&
+        data.activo == true;
+    }
+
+    function isValidEmpresa(data) {
+      return data.keys().hasAll(['codigo', 'nombre', 'rut', 'direccion', 'telefono', 'correo', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly(['codigo', 'nombre', 'rut', 'direccion', 'telefono', 'correo', 'logo', 'createdAt', 'updatedAt']) &&
+        data.codigo is string && data.codigo.size() >= 1 && data.codigo.size() <= 64 && data.codigo.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.nombre is string && data.nombre.size() >= 1 && data.nombre.size() <= 200 &&
+        data.rut is string && data.rut.size() <= 40 &&
+        data.direccion is string && data.direccion.size() <= 300 &&
+        data.telefono is string && data.telefono.size() <= 60 &&
+        data.correo is string && data.correo.size() <= 200 &&
+        (!('logo' in data) || (data.logo is string && data.logo.size() <= 450000)) &&
+        data.createdAt is timestamp &&
+        data.updatedAt is timestamp;
+    }
+
+    function isValidEmpresaModuloDatos(data) {
+      return data.keys().hasAll(['empresaCodigo', 'modulo', 'items', 'updatedAt', 'updatedBy']) &&
+        data.keys().hasOnly(['empresaCodigo', 'modulo', 'items', 'updatedAt', 'updatedBy']) &&
+        data.empresaCodigo is string && data.empresaCodigo.size() >= 1 && data.empresaCodigo.size() <= 64 && data.empresaCodigo.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.modulo in ['equipos', 'instrumentos', 'historial', 'correctivos', 'ordenesTrabajo', 'calibraciones', 'repuestos', 'movimientosRepuestos'] &&
+        data.items is list && data.items.size() <= 2500 &&
+        (data.items.size() == 0 || data.items[0] is map) &&
+        data.updatedAt is timestamp &&
+        data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128;
+    }
+
+    function isValidEmpresaUsuariosRoster(data) {
+      return data.keys().hasAll(['empresaCodigo', 'miembros', 'updatedAt', 'updatedBy']) &&
+        data.keys().hasOnly(['empresaCodigo', 'miembros', 'updatedAt', 'updatedBy']) &&
+        data.empresaCodigo is string && data.empresaCodigo.size() >= 1 && data.empresaCodigo.size() <= 64 && data.empresaCodigo.matches('^[a-zA-Z0-9_\\-]+$') &&
+        data.miembros is list && data.miembros.size() <= 200 &&
+        (data.miembros.size() == 0 || data.miembros[0] is map) &&
+        data.updatedAt is timestamp &&
+        data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128;
+    }
+
+    function isValidCatalogoGlobal(data) {
+      return data.keys().hasAll(['catalogo', 'items', 'updatedAt', 'updatedBy']) &&
+        data.keys().hasOnly(['catalogo', 'items', 'updatedAt', 'updatedBy']) &&
+        data.catalogo in ['sistemas', 'frecuencias', 'tecnicos', 'empresas_index', 'global_users_index'] &&
+        data.items is list && data.items.size() <= 1000 &&
+        (data.items.size() == 0 || data.items[0] is map || data.items[0] is string) &&
+        data.updatedAt is timestamp &&
+        data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128;
+    }
+
+    // 4. Collection Rules
+
+    match /admins/{uid} {
+      allow get: if isVerified() && isValidId(uid) && (request.auth.uid == uid || isSuperAdmin());
+      allow list: if isBootstrapSuperAdmin();
+      allow create: if isVerified() && isValidId(uid) && isValidAdminRecord(incoming()) &&
+        incoming().uid == uid && incoming().createdAt == request.time &&
+        ((isBootstrapSuperAdmin() && request.auth.uid == uid && incoming().email.lower() == authEmail()) || isSuperAdmin());
+      allow update: if false;
+      allow delete: if isVerified() && isValidId(uid) && isSuperAdmin() && uid != request.auth.uid;
+    }
+
+    match /users/{uid} {
+      allow get: if isVerified() && isValidId(uid) && (
+        request.auth.uid == uid ||
+        isSuperAdmin() ||
+        (resource != null && isCompanyAdmin(existing().empresaCodigo))
+      );
+      allow list: if isBootstrapSuperAdmin() || (isVerified() && resource.data.uid == request.auth.uid);
+
+      allow create: if isVerified() && isValidId(uid) && isValidUserProfile(incoming()) &&
+        incoming().uid == uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time && (
+          (isBootstrapSuperAdmin() && request.auth.uid == uid && incoming().email.lower() == authEmail() && incoming().role == 'super_admin' && incoming().activo == true) ||
+          isSuperAdmin() ||
+          (
+            request.auth.uid == uid &&
+            'inviteId' in incoming() &&
+            incoming().inviteId is string &&
+            isValidId(incoming().inviteId) &&
+            exists(/databases/$(database)/documents/user_invites/$(incoming().inviteId)) &&
+            matchesActiveInvite(incoming(), get(/databases/$(database)/documents/user_invites/$(incoming().inviteId)).data)
+          )
+        );
+
+      allow update: if isVerified() && isValidId(uid) && isValidUserProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isSuperAdmin() ||
+          (
+            isCompanyAdmin(existing().empresaCodigo) &&
+            existing().role != 'super_admin' &&
+            incoming().role in ['company_admin', 'company_user'] &&
+            incoming().empresaCodigo == existing().empresaCodigo &&
+            incoming().empresaNombre == existing().empresaNombre &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['nombre', 'cargo', 'role', 'permisos', 'activo', 'updatedAt'])
+          ) ||
+          (
+            request.auth.uid == uid &&
+            existing().activo == true &&
+            incoming().role == existing().role &&
+            incoming().empresaCodigo == existing().empresaCodigo &&
+            incoming().empresaNombre == existing().empresaNombre &&
+            incoming().permisos == existing().permisos &&
+            incoming().activo == existing().activo &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['nombre', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isVerified() && isValidId(uid) && (
+        (isSuperAdmin() && uid != request.auth.uid) ||
+        (isCompanyAdmin(existing().empresaCodigo) && existing().role != 'super_admin' && uid != request.auth.uid)
+      );
+    }
+
+    match /user_invites/{inviteId} {
+      allow get: if isVerified() && isValidId(inviteId) && (
+        isSuperAdmin() ||
+        (resource != null && (existing().email.lower() == authEmail() || isCompanyAdmin(existing().empresaCodigo)))
+      );
+      allow list: if isBootstrapSuperAdmin() || (isVerified() && resource.data.email == authEmail());
+
+      allow create: if isVerified() && isValidId(inviteId) && isValidUserInvite(incoming()) &&
+        incoming().id == inviteId &&
+        incoming().createdByUid == request.auth.uid &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time && (
+          isSuperAdmin() ||
+          (
+            isCompanyAdmin(incoming().empresaCodigo) &&
+            incoming().role in ['company_admin', 'company_user'] &&
+            incoming().empresaCodigo.size() > 0
+          )
+        );
+
+      allow update: if isVerified() && isValidId(inviteId) && isValidUserInvite(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().createdByUid == existing().createdByUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isSuperAdmin() ||
+          (
+            isCompanyAdmin(existing().empresaCodigo) &&
+            existing().role != 'super_admin' &&
+            incoming().role in ['company_admin', 'company_user'] &&
+            incoming().empresaCodigo == existing().empresaCodigo &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['nombre', 'cargo', 'role', 'permisos', 'activo', 'updatedAt'])
+          ) ||
+          (
+            existing().email.lower() == authEmail() &&
+            existing().activo == true &&
+            incoming().email == existing().email &&
+            incoming().role == existing().role &&
+            incoming().empresaCodigo == existing().empresaCodigo &&
+            incoming().empresaNombre == existing().empresaNombre &&
+            incoming().permisos == existing().permisos &&
+            incoming().activo == existing().activo &&
+            incoming().claimedUid == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['claimedUid', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isVerified() && isValidId(inviteId) && (
+        isSuperAdmin() ||
+        (isCompanyAdmin(existing().empresaCodigo) && existing().role != 'super_admin')
+      );
+    }
+
+    match /empresas/{empresaId} {
+      allow get: if isVerified() && isValidId(empresaId) && isCompanyMember(empresaId);
+      allow list: if isBootstrapSuperAdmin();
+
+      allow create: if isVerified() && isValidId(empresaId) && isValidEmpresa(incoming()) &&
+        incoming().codigo == empresaId &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time &&
+        isSuperAdmin();
+
+      allow update: if isVerified() && isValidId(empresaId) && isValidEmpresa(incoming()) &&
+        incoming().codigo == existing().codigo &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isSuperAdmin() ||
+          (
+            isCompanyAdmin(empresaId) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['nombre', 'rut', 'direccion', 'telefono', 'correo', 'logo', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isVerified() && isValidId(empresaId) && isSuperAdmin();
+
+      match /datos/{moduloId} {
+        allow get: if isVerified() && isValidId(empresaId) && isValidId(moduloId) && isCompanyMember(empresaId);
+        allow list: if isBootstrapSuperAdmin();
+
+        allow create: if isVerified() && isValidId(empresaId) && isValidId(moduloId) &&
+          isValidEmpresaModuloDatos(incoming()) &&
+          incoming().empresaCodigo == empresaId &&
+          incoming().modulo == moduloId &&
+          incoming().updatedBy == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          (exists(/databases/$(database)/documents/empresas/$(empresaId)) || existsAfter(/databases/$(database)/documents/empresas/$(empresaId))) &&
+          canWriteCompanyData(empresaId);
+
+        allow update: if isVerified() && isValidId(empresaId) && isValidId(moduloId) &&
+          isValidEmpresaModuloDatos(incoming()) &&
+          incoming().empresaCodigo == existing().empresaCodigo &&
+          incoming().modulo == existing().modulo &&
+          incoming().updatedBy == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['items', 'updatedAt', 'updatedBy']) &&
+          canWriteCompanyData(empresaId);
+
+        allow delete: if isVerified() && isValidId(empresaId) && isValidId(moduloId) && isSuperAdmin();
+      }
+
+      match /config/{docId} {
+        allow get: if isVerified() && isValidId(empresaId) && isValidId(docId) && isCompanyAdmin(empresaId);
+        allow list: if isBootstrapSuperAdmin();
+
+        allow create: if isVerified() && isValidId(empresaId) && isValidId(docId) &&
+          docId == 'usuarios' &&
+          isValidEmpresaUsuariosRoster(incoming()) &&
+          incoming().empresaCodigo == empresaId &&
+          incoming().updatedBy == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          (exists(/databases/$(database)/documents/empresas/$(empresaId)) || existsAfter(/databases/$(database)/documents/empresas/$(empresaId))) &&
+          isCompanyAdmin(empresaId);
+
+        allow update: if isVerified() && isValidId(empresaId) && isValidId(docId) &&
+          docId == 'usuarios' &&
+          isValidEmpresaUsuariosRoster(incoming()) &&
+          incoming().empresaCodigo == existing().empresaCodigo &&
+          incoming().updatedBy == request.auth.uid &&
+          incoming().updatedAt == request.time &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['miembros', 'updatedAt', 'updatedBy']) &&
+          isCompanyAdmin(empresaId);
+
+        allow delete: if isVerified() && isValidId(empresaId) && isValidId(docId) && isSuperAdmin();
+      }
+    }
+
+    match /catalogos/{catalogoId} {
+      allow get: if isVerified() && isValidId(catalogoId) && (
+        (catalogoId in ['sistemas', 'frecuencias', 'tecnicos'] && isActiveUser()) ||
+        (catalogoId in ['empresas_index', 'global_users_index'] && isSuperAdmin())
+      );
+      allow list: if isBootstrapSuperAdmin();
+
+      allow create: if isVerified() && isValidId(catalogoId) &&
+        isValidCatalogoGlobal(incoming()) &&
+        incoming().catalogo == catalogoId &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time && (
+          isSuperAdmin() ||
+          (catalogoId in ['sistemas', 'frecuencias', 'tecnicos'] && canEditCatalog(catalogoId))
+        );
+
+      allow update: if isVerified() && isValidId(catalogoId) &&
+        isValidCatalogoGlobal(incoming()) &&
+        incoming().catalogo == existing().catalogo &&
+        incoming().updatedBy == request.auth.uid &&
+        incoming().updatedAt == request.time &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['items', 'updatedAt', 'updatedBy']) && (
+          isSuperAdmin() ||
+          (catalogoId in ['sistemas', 'frecuencias', 'tecnicos'] && canEditCatalog(catalogoId))
+        );
+
+      allow delete: if isVerified() && isValidId(catalogoId) && isSuperAdmin();
+    }
+  }
+}

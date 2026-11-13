@@ -178,8 +178,8 @@ export const PlanMaestroView: React.FC = () => {
     }
   }
 
-  // Paginate equipment in chunks of 5 so an equipment is NEVER cut across page breaks
-  const ITEMS_PER_PAGE = 5;
+  // Paginate equipment in chunks of 8 so equipment fits comfortably per A4 landscape page without unnecessary breaks
+  const ITEMS_PER_PAGE = 8;
   const totalPages = Math.max(1, Math.ceil(matrixGroups.length / ITEMS_PER_PAGE));
   const pagedGroups: MatrixRowGroup[][] = [];
   for (let i = 0; i < totalPages; i++) {
@@ -333,7 +333,7 @@ export const PlanMaestroView: React.FC = () => {
               <div
                 key={`page_${pageIdx}`}
                 className="print-sheet bg-white rounded-xl border border-slate-300 p-5 sm:p-6 space-y-4 shadow-sm flex flex-col justify-between"
-                style={{ minHeight: '640px' }}
+                style={{ minHeight: '760px' }}
               >
                 {/* Top Content Block (Header + Table stays top-aligned) */}
                 <div className="space-y-4">
@@ -411,21 +411,21 @@ export const PlanMaestroView: React.FC = () => {
                             <React.Fragment key={`${group.equipo.codigo_eq}_${group.subIndex}`}>
                               {/* Row 1: Fecha Prevista */}
                               <tr className="border-t-2 border-slate-300 font-semibold text-slate-900">
-                                <td rowSpan={3} className="py-1.5 px-1 text-center font-mono border-r border-slate-200 align-top pt-2 bg-slate-100/70">
+                                <td rowSpan={3} className="py-1 px-1 text-center font-mono border-r border-slate-200 align-top pt-1.5 bg-slate-100/70">
                                   <div className="font-mono font-bold text-slate-900 text-[7px] tracking-tighter leading-tight whitespace-nowrap" title={group.equipo.codigo_eq}>
                                     {group.equipo.codigo_eq}
                                   </div>
                                 </td>
-                                <td rowSpan={3} className="py-1.5 px-1.5 border-r border-slate-200 align-top pt-1.5 bg-white">
+                                <td rowSpan={3} className="py-1 px-1.5 border-r border-slate-200 align-top pt-1 bg-white">
                                   <div className="font-semibold text-slate-900 leading-snug text-[7.5px] line-clamp-2" title={group.equipo.nombre}>
                                     {group.equipo.nombre}{group.suffix}
                                   </div>
                                   <div className="text-[7px] text-slate-400 truncate mt-0.5">{group.equipo.sistema}</div>
                                 </td>
-                                <td rowSpan={3} className="py-1.5 px-0.5 text-center border-r border-slate-200 align-top pt-1.5 text-slate-600 bg-white">
+                                <td rowSpan={3} className="py-1 px-0.5 text-center border-r border-slate-200 align-top pt-1 text-slate-600 bg-white">
                                   <span className="text-[7.5px] font-semibold">{group.equipo.frecuencia}</span>
                                 </td>
-                                <td className="py-1 px-0.5 text-slate-600 border-r border-slate-200 font-medium text-[7px] bg-slate-50 text-center whitespace-nowrap">
+                                <td className="py-0.5 px-0.5 text-slate-600 border-r border-slate-200 font-medium text-[7px] bg-slate-50 text-center whitespace-nowrap">
                                   Prev.
                                 </td>
                                 {MESES_L.map((m, mIdx) => {
@@ -458,7 +458,7 @@ export const PlanMaestroView: React.FC = () => {
                                         }
                                       }}
                                       title={dateVal || ''}
-                                      className={`py-1 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums cursor-pointer transition-colors hover:brightness-95 whitespace-nowrap ${statusBg}`}
+                                      className={`py-0.5 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums cursor-pointer transition-colors hover:brightness-95 whitespace-nowrap ${statusBg}`}
                                     >
                                       <span className="font-mono font-bold text-[6.5px] tracking-tighter block leading-none">
                                         {dateVal || '-'}
@@ -470,7 +470,7 @@ export const PlanMaestroView: React.FC = () => {
 
                               {/* Row 2: Fecha Realizada */}
                               <tr className="text-slate-700 text-[10px]">
-                                <td className="py-1 px-0.5 text-slate-500 border-r border-slate-200 font-normal text-[7px] bg-white text-center whitespace-nowrap">
+                                <td className="py-0.5 px-0.5 text-slate-500 border-r border-slate-200 font-normal text-[7px] bg-white text-center whitespace-nowrap">
                                   Real.
                                 </td>
                                 {MESES_L.map(m => {
@@ -479,7 +479,7 @@ export const PlanMaestroView: React.FC = () => {
                                     <td
                                       key={m}
                                       title={realVal || ''}
-                                      className="py-1 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums font-semibold text-emerald-700 bg-white whitespace-nowrap"
+                                      className="py-0.5 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums font-semibold text-emerald-700 bg-white whitespace-nowrap"
                                     >
                                       <span className="font-mono font-semibold text-[6.5px] tracking-tighter block leading-none">
                                         {realVal || '-'}
@@ -491,7 +491,7 @@ export const PlanMaestroView: React.FC = () => {
 
                               {/* Row 3: ID de Orden */}
                               <tr className="text-slate-600 text-[9px]">
-                                <td className="py-1 px-0.5 text-slate-500 border-r border-slate-200 font-normal text-[7px] bg-slate-50/30 text-center whitespace-nowrap">
+                                <td className="py-0.5 px-0.5 text-slate-500 border-r border-slate-200 font-normal text-[7px] bg-slate-50/30 text-center whitespace-nowrap">
                                   Orden
                                 </td>
                                 {MESES_L.map(m => {
@@ -501,7 +501,7 @@ export const PlanMaestroView: React.FC = () => {
                                     <td
                                       key={m}
                                       title={folioVal || ''}
-                                      className="py-1 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums text-slate-600 bg-slate-50/30 font-semibold whitespace-nowrap"
+                                      className="py-0.5 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums text-slate-600 bg-slate-50/30 font-semibold whitespace-nowrap"
                                     >
                                       <span className="font-mono text-[6.5px] tracking-tighter block leading-none">
                                         {shortFolio || '-'}

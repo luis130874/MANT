@@ -449,7 +449,7 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
             <div
               key={`eq_plan_page_${pageIdx}`}
               className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between"
-              style={{ minHeight: '640px' }}
+              style={{ minHeight: '760px' }}
             >
               <div className="space-y-3">
                 {renderHeader(pageIdx)}
@@ -554,7 +554,7 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
             <div
               key={`eq_cons_page_${pageIdx}`}
               className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between"
-              style={{ minHeight: '640px' }}
+              style={{ minHeight: '760px' }}
             >
               <div className="space-y-3">
                 {renderHeader(pageIdx)}
@@ -652,7 +652,7 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
             <div
               key={`inst_page_${pageIdx}`}
               className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between"
-              style={{ minHeight: '640px' }}
+              style={{ minHeight: '760px' }}
             >
               <div className="space-y-3">
                 {renderHeader(pageIdx)}

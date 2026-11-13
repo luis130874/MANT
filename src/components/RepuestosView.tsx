@@ -1477,7 +1477,7 @@ export const RepuestosView: React.FC = () => {
           <div
             key={`pdf_rep_page_${pageIdx}`}
             className="print-sheet bg-white text-slate-900 p-6 space-y-4 flex flex-col justify-between"
-            style={{ minHeight: '640px' }}
+            style={{ minHeight: '760px' }}
           >
             <div className="space-y-3">
               {/* Sheet Header */}
@@ -1705,7 +1705,7 @@ export const RepuestosView: React.FC = () => {
               <div
                 key={`preview_rep_page_${pageIdx}`}
                 className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between"
-                style={{ minHeight: '640px' }}
+                style={{ minHeight: '760px' }}
               >
                 <div className="space-y-3">
                   <div className="border-b-2 border-slate-900 pb-2.5 flex items-start justify-between gap-4">

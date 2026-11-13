@@ -120,9 +120,10 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
           return (
             <div
               key={`${doc.folio}_${idx}`}
-              className="print-sheet bg-white text-slate-900 p-8 sm:p-10 rounded-xl shadow-md border border-slate-300 page-break-after"
-              style={{ minHeight: '297mm' }}
+              className="print-sheet bg-white text-slate-900 p-8 sm:p-10 rounded-xl shadow-md border border-slate-300 page-break-after flex flex-col justify-between gap-6"
+              style={{ minHeight: '285mm' }}
             >
+              <div className="space-y-5">
               {/* Header with Prodexus & Client Logos */}
               <div className="flex items-start justify-between gap-4 border-b-2 border-slate-900 pb-4">
                 <div className="flex items-center gap-3 min-w-0">
@@ -180,7 +181,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
               </div>
 
               {/* Asset & Schedule Information Box */}
-              <div className="grid grid-cols-2 gap-4 my-6 p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-slate-50 border border-slate-200 rounded-lg text-xs">
                 <div className="space-y-1">
                   <div>
                     <span className="text-slate-500 font-medium">{isCalibracion ? 'Instrumento:' : 'Equipo / Activo:'}</span>{' '}
@@ -270,7 +271,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
 
               {/* Body: Protocol Tasks for MP or Description for MC/OT or Calibration Points for CAL */}
               {isPreventivo && (
-                <div className="space-y-4 my-6">
+                <div className="space-y-4">
                   <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1">
                     Protocolo de Tareas & Verificaciones Técnicas
                   </h3>
@@ -286,7 +287,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
               )}
 
               {isCalibracion && (
-                <div className="space-y-4 my-6">
+                <div className="space-y-4">
                   {/* Pattern and Traceability */}
                   <div className="p-3 bg-slate-50 border border-slate-200 rounded text-xs space-y-1.5">
                     <div className="flex justify-between gap-4">
@@ -418,7 +419,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
               )}
 
               {isCorrectivo && (
-                <div className="space-y-4 my-6">
+                <div className="space-y-4">
                   <div>
                     <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 mb-2">
                       Descripción de la Avería / Falla Reportada
@@ -440,7 +441,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
               )}
 
               {isOT && (
-                <div className="space-y-4 my-6">
+                <div className="space-y-4">
                   <div>
                     <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 mb-2">
                       Alcance del Trabajo Solicitado (Proyecto / Mejora)
@@ -461,48 +462,52 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
                 </div>
               )}
 
-              {/* Signatures & Execution Section */}
-              <div className="mt-12 pt-6 border-t-2 border-slate-300 text-xs">
-                <div className="grid grid-cols-3 gap-6 text-center">
-                  <div>
-                    <div className="border-b border-slate-400 pb-1 mb-1 font-mono text-[11px] text-slate-400">
-                      Firma / Timbre
-                    </div>
-                    <p className="font-bold text-slate-900">
-                      {isCalibracion ? 'Metrólogo Ejecutor' : 'Técnico Ejecutor'}
-                    </p>
-                    <p className="text-[10px] text-slate-500">
-                      {isCalibracion
-                        ? (isCalPendiente ? `Fecha Real: ____ / ____ / ${docYear}` : doc.calibracion?.metrologo_laboratorio)
-                        : `Fecha Real: ____ / ____ / ${docYear}`}
-                    </p>
-                  </div>
-
-                  <div>
-                    <div className="border-b border-slate-400 pb-1 mb-1 font-mono text-[11px] text-slate-400">
-                      Firma / Timbre
-                    </div>
-                    <p className="font-bold text-slate-900">
-                      {isCalibracion ? 'Aseguramiento de Calidad' : 'Supervisor de Mantenimiento'}
-                    </p>
-                    <p className="text-[10px] text-slate-500">Conformidad Técnica</p>
-                  </div>
-
-                  <div>
-                    <div className="border-b border-slate-400 pb-1 mb-1 font-mono text-[11px] text-slate-400">
-                      Firma / Timbre
-                    </div>
-                    <p className="font-bold text-slate-900">
-                      {isCalibracion ? 'Dirección Técnica de Planta' : 'Recepción Operaciones'}
-                    </p>
-                    <p className="text-[10px] text-slate-500">Planta {doc.equipo.cliente.slice(0, 18)}</p>
-                  </div>
-                </div>
               </div>
 
-              {/* Quality Audit Stamp */}
-              <div className="mt-8 pt-2 text-center text-[10px] text-slate-400 border-t border-slate-200">
-                PRODEXUS Cloud System · Sistema Certificado de Gestión de Mantenimiento & Metrología · Formulario Oficial ISO 9001 / ISO 17025
+              {/* Signatures & Execution Section (Anchored to Page Footer) */}
+              <div className="mt-auto pt-6">
+                <div className="pt-5 border-t-2 border-slate-300 text-xs">
+                  <div className="grid grid-cols-3 gap-6 text-center">
+                    <div>
+                      <div className="border-b border-slate-400 h-10 flex items-end justify-center pb-1 mb-1 font-mono text-[11px] text-slate-400">
+                        Firma / Timbre
+                      </div>
+                      <p className="font-bold text-slate-900">
+                        {isCalibracion ? 'Metrólogo Ejecutor' : 'Técnico Ejecutor'}
+                      </p>
+                      <p className="text-[10px] text-slate-500">
+                        {isCalibracion
+                          ? (isCalPendiente ? `Fecha Real: ____ / ____ / ${docYear}` : doc.calibracion?.metrologo_laboratorio)
+                          : `Fecha Real: ____ / ____ / ${docYear}`}
+                      </p>
+                    </div>
+
+                    <div>
+                      <div className="border-b border-slate-400 h-10 flex items-end justify-center pb-1 mb-1 font-mono text-[11px] text-slate-400">
+                        Firma / Timbre
+                      </div>
+                      <p className="font-bold text-slate-900">
+                        {isCalibracion ? 'Aseguramiento de Calidad' : 'Supervisor de Mantenimiento'}
+                      </p>
+                      <p className="text-[10px] text-slate-500">Conformidad Técnica</p>
+                    </div>
+
+                    <div>
+                      <div className="border-b border-slate-400 h-10 flex items-end justify-center pb-1 mb-1 font-mono text-[11px] text-slate-400">
+                        Firma / Timbre
+                      </div>
+                      <p className="font-bold text-slate-900">
+                        {isCalibracion ? 'Dirección Técnica de Planta' : 'Recepción Operaciones'}
+                      </p>
+                      <p className="text-[10px] text-slate-500">Planta {doc.equipo.cliente.slice(0, 18)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quality Audit Stamp */}
+                <div className="mt-4 pt-2 text-center text-[10px] text-slate-400 border-t border-slate-200">
+                  PRODEXUS Cloud System · Sistema Certificado de Gestión de Mantenimiento & Metrología · Formulario Oficial ISO 9001 / ISO 17025
+                </div>
               </div>
             </div>
           );

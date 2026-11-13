@@ -36,7 +36,8 @@
     box-shadow: none !important;
     border: none !important;
     width: 100% !important;
-    min-height: 100% !important;
+    min-height: 98vh !important;
+    box-sizing: border-box !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;

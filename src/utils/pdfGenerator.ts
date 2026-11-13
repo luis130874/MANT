@@ -32,12 +32,32 @@ export async function exportPagesToPDF(
 
   for (let i = 0; i < pageElements.length; i++) {
     const el = pageElements[i];
-    const canvas = await html2canvas(el, {
-      scale: 2,
-      useCORS: true,
-      logging: false,
-      backgroundColor: '#ffffff'
-    });
+    const rect = el.getBoundingClientRect();
+    const elWidth = rect.width || el.offsetWidth || (orientation === 'landscape' ? 1120 : 794);
+    const targetMinHeightPx = Math.round(elWidth * (printHeight / printWidth));
+
+    el.setAttribute('data-pdf-active-sheet', '1');
+    let canvas: HTMLCanvasElement;
+    try {
+      canvas = await html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        onclone: (clonedDoc) => {
+          const target = clonedDoc.querySelector<HTMLElement>('[data-pdf-active-sheet="1"]');
+          if (target) {
+            target.style.display = 'flex';
+            target.style.flexDirection = 'column';
+            target.style.justifyContent = 'space-between';
+            target.style.minHeight = `${targetMinHeightPx}px`;
+            target.style.boxSizing = 'border-box';
+          }
+        }
+      });
+    } finally {
+      el.removeAttribute('data-pdf-active-sheet');
+    }
 
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
 
@@ -45,10 +65,16 @@ export async function exportPagesToPDF(
       pdf.addPage();
     }
 
-    const calculatedHeight = (canvas.height * printWidth) / canvas.width;
-    const finalHeight = Math.min(calculatedHeight, printHeight);
+    let drawWidth = printWidth;
+    let drawHeight = (canvas.height * printWidth) / canvas.width;
+    if (drawHeight > printHeight) {
+      const ratio = printHeight / drawHeight;
+      drawHeight = printHeight;
+      drawWidth = printWidth * ratio;
+    }
+    const offsetX = margin + (printWidth - drawWidth) / 2;
 
-    pdf.addImage(imgData, 'JPEG', margin, margin, printWidth, finalHeight);
+    pdf.addImage(imgData, 'JPEG', offsetX, margin, drawWidth, drawHeight);
   }
 
   const safeFilename = filename.endsWith('.pdf') ? filename : `${filename}.pdf`;

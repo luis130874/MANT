@@ -46,6 +46,7 @@ import {
 import { exportElementToPDF } from '../utils/pdfGenerator';
 import { OrdenCalibracion, PuntoCalibracion, Equipo, Instrumento } from '../types';
 import { RepuestosConsumoSelector, SelectedRepuestoConsumo } from './RepuestosConsumoSelector';
+import { CatalogoListadoModal } from './CatalogoListadoModal';
 
 interface CalibracionViewProps {
   initialTab?: 'plan' | 'instrumentos' | 'emision' | 'cierre' | 'historial';
@@ -124,6 +125,7 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
   const [instFilterEstado, setInstFilterEstado] = useState<'Todos' | 'Activo' | 'Baja'>('Activo');
   const [instModalMode, setInstModalMode] = useState<'create' | 'edit' | null>(null);
   const [editingInstCodigo, setEditingInstCodigo] = useState<string | null>(null);
+  const [showInstListadoModal, setShowInstListadoModal] = useState(false);
 
   // Instrument Modal Form states
   const [fInstCodigo, setFInstCodigo] = useState('');
@@ -950,6 +952,7 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
 
   return (
     <div className="space-y-6">
+      <div className={showInstListadoModal ? 'space-y-6 no-print' : 'space-y-6'}>
       {/* View Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 no-print">
         <div>
@@ -1100,6 +1103,7 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
                     className="print-sheet bg-white rounded-xl border border-slate-300 p-5 sm:p-6 space-y-4 shadow-sm flex flex-col justify-between"
                     style={{ minHeight: '640px' }}
                   >
+                    <div className="space-y-4">
                     {/* Sheet Header with Client Logo */}
                     {(() => {
                       const currentClienteObj = clientes.find(c => c.nombre.trim() === selectedCliente.trim());
@@ -1273,9 +1277,10 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
                         </tbody>
                       </table>
                     </div>
+                    </div>
 
               {/* Official Per-Sheet Sign-Off Block for Metrology ISO Audit */}
-              <div className="mt-3 pt-2 border-t border-slate-300 text-xs text-slate-600">
+              <div className="mt-auto pt-2 border-t border-slate-300 text-xs text-slate-600">
                 <div className="grid grid-cols-3 gap-6">
                   <div className="border-t border-slate-400 pt-1">
                     <p className="font-bold text-[8px] text-slate-900 uppercase">RESPONSABLE DE METROLOGÍA:</p>
@@ -1414,15 +1419,27 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
               </div>
             </div>
 
-            {canEdit && (
+            {(canPrint || canEdit) && (
               <div className="flex items-center gap-2">
-                <button
-                  onClick={handleOpenCreateInst}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-xs"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Ingresar Instrumento</span>
-                </button>
+                {canPrint && (
+                  <button
+                    type="button"
+                    onClick={() => setShowInstListadoModal(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-lg transition-colors shadow-2xs"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Emitir Listado</span>
+                  </button>
+                )}
+                {canEdit && (
+                  <button
+                    onClick={handleOpenCreateInst}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Ingresar Instrumento</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -3245,6 +3262,18 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+      </div>
+
+      {showInstListadoModal && (
+        <CatalogoListadoModal
+          mode="instrumentos"
+          selectedCliente={selectedCliente}
+          clientes={clientes}
+          instrumentos={instrumentosListado}
+          filtroDescripcion={instFilterEstado !== 'Todos' ? `Estado: ${instFilterEstado}` : undefined}
+          onClose={() => setShowInstListadoModal(false)}
+        />
       )}
     </div>
   );

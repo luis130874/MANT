@@ -17,12 +17,14 @@ import {
   CalendarPlus,
   Info,
   Layers,
-  CheckCircle2
+  CheckCircle2,
+  Printer
 } from 'lucide-react';
 import { useMaintenance } from '../context/MaintenanceContext';
 import { useAuth } from '../context/AuthContext';
 import { hasActionAccess } from '../utils/rbac';
 import { Equipo } from '../types';
+import { CatalogoListadoModal } from './CatalogoListadoModal';
 
 export const EquiposView: React.FC = () => {
   const {
@@ -41,11 +43,13 @@ export const EquiposView: React.FC = () => {
   const { userProfile, isSuperAdmin } = useAuth();
   const canEdit = hasActionAccess(userProfile, 'crear_editar');
   const canDelete = hasActionAccess(userProfile, 'eliminar');
+  const canPrint = hasActionAccess(userProfile, 'imprimir_pdf');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSistema, setSelectedSistema] = useState('Todos');
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
   const [editingEquipoId, setEditingEquipoId] = useState<string | null>(null);
+  const [showListadoModal, setShowListadoModal] = useState(false);
 
   // Form states
   const [formId, setFormId] = useState('');
@@ -273,6 +277,7 @@ export const EquiposView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <div className={showListadoModal ? 'space-y-6 no-print' : 'space-y-6'}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200">
         <div>
@@ -285,8 +290,17 @@ export const EquiposView: React.FC = () => {
           </p>
         </div>
 
-        {canEdit && (
-          <div className="flex items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {canPrint && (
+            <button
+              onClick={() => setShowListadoModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs"
+            >
+              <Printer className="w-3.5 h-3.5 text-blue-600" />
+              <span>Emitir Listado</span>
+            </button>
+          )}
+          {canEdit && (
             <button
               onClick={handleOpenCreate}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-xs"
@@ -294,8 +308,8 @@ export const EquiposView: React.FC = () => {
               <Plus className="w-3.5 h-3.5" />
               <span>Nuevo Equipo / Frecuencia</span>
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Filter Bar */}
@@ -752,6 +766,18 @@ export const EquiposView: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+      </div>
+
+      {showListadoModal && (
+        <CatalogoListadoModal
+          mode="equipos"
+          selectedCliente={selectedCliente}
+          clientes={clientes}
+          equipos={equiposFiltrados}
+          filtroDescripcion={selectedSistema !== 'Todos' ? `Sistema: ${selectedSistema}` : undefined}
+          onClose={() => setShowListadoModal(false)}
+        />
       )}
     </div>
   );

@@ -33,7 +33,8 @@ import {
   Mail,
   Info,
   Loader2,
-  X
+  X,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useMaintenance } from '../context/MaintenanceContext';
 import { useAuth } from '../context/AuthContext';
@@ -369,6 +370,60 @@ export const RepuestosView: React.FC = () => {
     }
   };
 
+  const handleExportRepuestosCSV = () => {
+    const headers = [
+      'Código',
+      'OEM P/N',
+      'Nombre',
+      'Categoría',
+      'Planta',
+      'Equipos Asociados',
+      'Criticidad',
+      'Stock Actual',
+      'Stock Mínimo',
+      'Unidad',
+      'Ubicación Almacén',
+      'Precio Unitario',
+      'Moneda',
+      'Valor Total',
+      'Proveedor',
+      'Entrega (Días)'
+    ];
+    const rows = repuestosFiltrados.map(r => [
+      r.codigo_repuesto,
+      r.numero_parte_fabricante || '',
+      r.nombre,
+      r.categoria,
+      r.cliente,
+      r.equipos_asociados.length > 0 ? r.equipos_asociados.join(' / ') : 'General',
+      r.criticidad,
+      String(r.stock_actual),
+      String(r.stock_minimo),
+      r.unidad_medida,
+      r.ubicacion_almacen || '',
+      String(r.precio_unitario || 0),
+      r.moneda || 'USD',
+      (r.stock_actual * (r.precio_unitario || 0)).toFixed(2),
+      r.proveedor || '',
+      String(r.tiempo_entrega_dias || 3)
+    ]);
+
+    const escapeCsv = (val: string) => {
+      const s = String(val ?? '').replace(/"/g, '""');
+      return `"${s}"`;
+    };
+    const csvContent = '\uFEFF' + [headers, ...rows].map(r => r.map(escapeCsv).join(';')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const safeCliente = selectedCliente.replace(/\s+/g, '_');
+    a.download = `Listado_Repuestos_${safeCliente}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addToast(`Listado de repuestos exportado (${repuestosFiltrados.length} ítems).`, 'success');
+  };
+
   return (
     <div className="space-y-6">
       {/* Header & Controls */}
@@ -393,6 +448,13 @@ export const RepuestosView: React.FC = () => {
           {canPrint && (
             <>
               <button
+                onClick={handleExportRepuestosCSV}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors shadow-2xs"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Excel</span>
+              </button>
+              <button
                 onClick={handleDownloadPDF}
                 disabled={isGeneratingPDF}
                 className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-slate-800 disabled:opacity-50 transition-colors shadow-2xs"
@@ -402,14 +464,14 @@ export const RepuestosView: React.FC = () => {
                 ) : (
                   <FileDown className="w-3.5 h-3.5" />
                 )}
-                <span>{isGeneratingPDF ? 'Generando PDF...' : 'Generar / Descargar PDF'}</span>
+                <span>{isGeneratingPDF ? 'Generando PDF...' : 'PDF'}</span>
               </button>
               <button
                 onClick={handleOpenPrintPreview}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors shadow-2xs"
               >
-                <Printer className="w-3.5 h-3.5 text-slate-500" />
-                <span>Imprimir Inventario</span>
+                <Printer className="w-3.5 h-3.5 text-blue-600" />
+                <span>Emitir Listado / Imprimir</span>
               </button>
             </>
           )}
@@ -1564,7 +1626,7 @@ export const RepuestosView: React.FC = () => {
             </div>
 
             {/* Footer Signatures */}
-            <div className="pt-4 border-t border-slate-300">
+            <div className="mt-auto pt-4 border-t border-slate-300">
               <div className="grid grid-cols-3 gap-6 text-center text-[9.5px] text-slate-600 mb-2">
                 <div>
                   <div className="border-b border-slate-400 h-6 mb-1" />
@@ -1602,6 +1664,13 @@ export const RepuestosView: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportRepuestosCSV}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg hover:bg-emerald-100 transition-colors shadow-xs"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5" />
+                <span>Excel (CSV)</span>
+              </button>
               <button
                 onClick={handleDownloadPDF}
                 disabled={isGeneratingPDF}
@@ -1781,7 +1850,7 @@ export const RepuestosView: React.FC = () => {
                   </table>
                 </div>
 
-                <div className="pt-4 border-t border-slate-300">
+                <div className="mt-auto pt-4 border-t border-slate-300">
                   <div className="grid grid-cols-3 gap-6 text-center text-[9.5px] text-slate-600 mb-2">
                     <div>
                       <div className="border-b border-slate-400 h-6 mb-1" />

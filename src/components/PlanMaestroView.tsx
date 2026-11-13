@@ -335,184 +335,187 @@ export const PlanMaestroView: React.FC = () => {
                 className="print-sheet bg-white rounded-xl border border-slate-300 p-5 sm:p-6 space-y-4 shadow-sm flex flex-col justify-between"
                 style={{ minHeight: '640px' }}
               >
-                {/* Sheet Header with Client Logo */}
-                {(() => {
-                  const currentClienteObj = clientes.find(c => c.nombre.trim() === selectedCliente.trim());
-                  return (
-                    <div className="border-b border-slate-900 pb-2.5 flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-11 max-w-[150px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
-                          <img
-                            src="/assets/aistudio/prodexus_921c729e.jpeg"
-                            alt="Prodexus CMMS"
-                            className="max-h-full max-w-full object-contain"
-                          />
-                        </div>
-                        {currentClienteObj?.logo && (
-                          <div className="h-11 max-w-[140px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
+                {/* Top Content Block (Header + Table stays top-aligned) */}
+                <div className="space-y-4">
+                  {/* Sheet Header with Client Logo */}
+                  {(() => {
+                    const currentClienteObj = clientes.find(c => c.nombre.trim() === selectedCliente.trim());
+                    return (
+                      <div className="border-b border-slate-900 pb-2.5 flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <div className="h-11 max-w-[150px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
                             <img
-                              src={currentClienteObj.logo}
-                              alt={`Logo ${currentClienteObj.nombre}`}
+                              src="/assets/aistudio/prodexus_921c729e.jpeg"
+                              alt="Prodexus CMMS"
                               className="max-h-full max-w-full object-contain"
                             />
                           </div>
-                        )}
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-mono text-[7.5px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
-                              CMMS INDUSTRIAL SYSTEM
-                            </span>
-                            <span className="text-[8px] font-mono text-slate-500 font-bold">
-                              DOC-AUDIT-MP{String(selectedAnio).slice(-2)} (Rev. 04)
-                            </span>
+                          {currentClienteObj?.logo && (
+                            <div className="h-11 max-w-[140px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
+                              <img
+                                src={currentClienteObj.logo}
+                                alt={`Logo ${currentClienteObj.nombre}`}
+                                className="max-h-full max-w-full object-contain"
+                              />
+                            </div>
+                          )}
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[7.5px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded">
+                                CMMS INDUSTRIAL SYSTEM
+                              </span>
+                              <span className="text-[8px] font-mono text-slate-500 font-bold">
+                                DOC-AUDIT-MP{String(selectedAnio).slice(-2)} (Rev. 04)
+                              </span>
+                            </div>
+                            <h2 className="text-xs sm:text-sm font-bold uppercase tracking-tight text-slate-900 mt-0.5">
+                              PRODEXUS Enterprise · Plan Maestro Anual {selectedAnio}
+                            </h2>
+                            <p className="text-[9px] text-slate-600 font-medium mt-0.5">
+                              Empresa / Planta: <span className="font-bold text-slate-900">{selectedCliente.toUpperCase()}</span> · Sistema: <span className="font-semibold text-slate-800">{selectedSistema}</span> · Emisión: <span className="font-mono">{new Date().toLocaleDateString('es-ES')}</span>
+                            </p>
                           </div>
-                          <h2 className="text-xs sm:text-sm font-bold uppercase tracking-tight text-slate-900 mt-0.5">
-                            PRODEXUS Enterprise · Plan Maestro Anual {selectedAnio}
-                          </h2>
-                          <p className="text-[9px] text-slate-600 font-medium mt-0.5">
-                            Empresa / Planta: <span className="font-bold text-slate-900">{selectedCliente.toUpperCase()}</span> · Sistema: <span className="font-semibold text-slate-800">{selectedSistema}</span> · Emisión: <span className="font-mono">{new Date().toLocaleDateString('es-ES')}</span>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <div className="inline-block bg-slate-900 text-white font-mono font-bold text-[8.5px] px-2 py-0.5 rounded shadow-xs">
+                            HOJA {pageIdx + 1} DE {totalPages}
+                          </div>
+                          <p className="text-[8px] text-slate-500 font-medium mt-0.5">
+                            Equipos en hoja: {chunk.length} (Total: {matrixGroups.length})
                           </p>
                         </div>
                       </div>
+                    );
+                  })()}
 
-                      <div className="text-right shrink-0">
-                        <div className="inline-block bg-slate-900 text-white font-mono font-bold text-[8.5px] px-2 py-0.5 rounded shadow-xs">
-                          HOJA {pageIdx + 1} DE {totalPages}
-                        </div>
-                        <p className="text-[8px] text-slate-500 font-medium mt-0.5">
-                          Equipos en hoja: {chunk.length} (Total: {matrixGroups.length})
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })()}
+                  {/* Master Plan High-Density Matrix Table (Full 12 Months, Table-Fixed) */}
+                  <div className="overflow-x-auto w-full">
+                    <table className="w-full text-left text-xs border-collapse table-fixed">
+                      <thead className="bg-slate-900 text-white font-bold text-[7.5px] uppercase tracking-wider">
+                        <tr>
+                          <th className="py-1 px-1 border-r border-slate-700 w-[5%] text-center">ID</th>
+                          <th className="py-1 px-1.5 border-r border-slate-700 w-[18%]">Equipo & Sistema</th>
+                          <th className="py-1 px-0.5 border-r border-slate-700 w-[7%] text-center">Frecuencia</th>
+                          <th className="py-1 px-0.5 border-r border-slate-700 w-[6%] text-center">Detalle</th>
+                          {MESES_L.map(m => (
+                            <th key={m} className="py-1 px-0.5 text-center border-r border-slate-700 w-[5.33%] text-[7.5px]">
+                              {m}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {chunk.map((group) => {
+                          return (
+                            <React.Fragment key={`${group.equipo.codigo_eq}_${group.subIndex}`}>
+                              {/* Row 1: Fecha Prevista */}
+                              <tr className="border-t-2 border-slate-300 font-semibold text-slate-900">
+                                <td rowSpan={3} className="py-1.5 px-1 text-center font-mono border-r border-slate-200 align-top pt-2 bg-slate-100/70">
+                                  <div className="font-mono font-bold text-slate-900 text-[7px] tracking-tighter leading-tight whitespace-nowrap" title={group.equipo.codigo_eq}>
+                                    {group.equipo.codigo_eq}
+                                  </div>
+                                </td>
+                                <td rowSpan={3} className="py-1.5 px-1.5 border-r border-slate-200 align-top pt-1.5 bg-white">
+                                  <div className="font-semibold text-slate-900 leading-snug text-[7.5px] line-clamp-2" title={group.equipo.nombre}>
+                                    {group.equipo.nombre}{group.suffix}
+                                  </div>
+                                  <div className="text-[7px] text-slate-400 truncate mt-0.5">{group.equipo.sistema}</div>
+                                </td>
+                                <td rowSpan={3} className="py-1.5 px-0.5 text-center border-r border-slate-200 align-top pt-1.5 text-slate-600 bg-white">
+                                  <span className="text-[7.5px] font-semibold">{group.equipo.frecuencia}</span>
+                                </td>
+                                <td className="py-1 px-0.5 text-slate-600 border-r border-slate-200 font-medium text-[7px] bg-slate-50 text-center whitespace-nowrap">
+                                  Prev.
+                                </td>
+                                {MESES_L.map((m, mIdx) => {
+                                  const dateVal = group.rowPrevista[m];
+                                  const status = group.rowStatus[m];
+                                  const folio = group.rowFolio[m];
 
-                {/* Master Plan High-Density Matrix Table (Full 12 Months, Table-Fixed) */}
-                <div className="overflow-x-auto w-full">
-                  <table className="w-full text-left text-xs border-collapse table-fixed">
-                    <thead className="bg-slate-900 text-white font-bold text-[7.5px] uppercase tracking-wider">
-                      <tr>
-                        <th className="py-1 px-1 border-r border-slate-700 w-[5%] text-center">ID</th>
-                        <th className="py-1 px-1.5 border-r border-slate-700 w-[18%]">Equipo & Sistema</th>
-                        <th className="py-1 px-0.5 border-r border-slate-700 w-[7%] text-center">Frecuencia</th>
-                        <th className="py-1 px-0.5 border-r border-slate-700 w-[6%] text-center">Detalle</th>
-                        {MESES_L.map(m => (
-                          <th key={m} className="py-1 px-0.5 text-center border-r border-slate-700 w-[5.33%] text-[7.5px]">
-                            {m}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {chunk.map((group) => {
-                        return (
-                          <React.Fragment key={`${group.equipo.codigo_eq}_${group.subIndex}`}>
-                            {/* Row 1: Fecha Prevista */}
-                            <tr className="border-t-2 border-slate-300 font-semibold text-slate-900">
-                              <td rowSpan={3} className="py-1.5 px-1 text-center font-mono border-r border-slate-200 align-top pt-2 bg-slate-100/70">
-                                <div className="font-mono font-bold text-slate-900 text-[7px] tracking-tighter leading-tight whitespace-nowrap" title={group.equipo.codigo_eq}>
-                                  {group.equipo.codigo_eq}
-                                </div>
-                              </td>
-                              <td rowSpan={3} className="py-1.5 px-1.5 border-r border-slate-200 align-top pt-1.5 bg-white">
-                                <div className="font-semibold text-slate-900 leading-snug text-[7.5px] line-clamp-2" title={group.equipo.nombre}>
-                                  {group.equipo.nombre}{group.suffix}
-                                </div>
-                                <div className="text-[7px] text-slate-400 truncate mt-0.5">{group.equipo.sistema}</div>
-                              </td>
-                              <td rowSpan={3} className="py-1.5 px-0.5 text-center border-r border-slate-200 align-top pt-1.5 text-slate-600 bg-white">
-                                <span className="text-[7.5px] font-semibold">{group.equipo.frecuencia}</span>
-                              </td>
-                              <td className="py-1 px-0.5 text-slate-600 border-r border-slate-200 font-medium text-[7px] bg-slate-50 text-center whitespace-nowrap">
-                                Prev.
-                              </td>
-                              {MESES_L.map((m, mIdx) => {
-                                const dateVal = group.rowPrevista[m];
-                                const status = group.rowStatus[m];
-                                const folio = group.rowFolio[m];
+                                  let statusBg = 'bg-slate-50/50';
+                                  if (status === 'completada_a_tiempo') statusBg = 'bg-emerald-50 text-emerald-800 font-bold';
+                                  else if (status === 'completada_fuera') statusBg = 'bg-amber-50 text-amber-800 font-bold';
+                                  else if (status === 'vencida') statusBg = 'bg-rose-50 text-rose-800 font-bold';
+                                  else if (status === 'programada') statusBg = 'bg-blue-50/70 text-slate-800 font-medium';
 
-                                let statusBg = 'bg-slate-50/50';
-                                if (status === 'completada_a_tiempo') statusBg = 'bg-emerald-50 text-emerald-800 font-bold';
-                                else if (status === 'completada_fuera') statusBg = 'bg-amber-50 text-amber-800 font-bold';
-                                else if (status === 'vencida') statusBg = 'bg-rose-50 text-rose-800 font-bold';
-                                else if (status === 'programada') statusBg = 'bg-blue-50/70 text-slate-800 font-medium';
+                                  return (
+                                    <td
+                                      key={m}
+                                      onClick={() => {
+                                        if (dateVal) {
+                                          const reg = dictHistorial.get(folio);
+                                          setSelectedCellInfo({
+                                            equipo: group.equipo,
+                                            mesIdx: mIdx + 1,
+                                            folio,
+                                            fechaPrev: dateVal,
+                                            fechaReal: reg?.fecha_real,
+                                            tecnico: reg?.tecnico || group.equipo.tecnico,
+                                            comentarios: reg?.comentarios,
+                                            estado: status as any
+                                          });
+                                        }
+                                      }}
+                                      title={dateVal || ''}
+                                      className={`py-1 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums cursor-pointer transition-colors hover:brightness-95 whitespace-nowrap ${statusBg}`}
+                                    >
+                                      <span className="font-mono font-bold text-[6.5px] tracking-tighter block leading-none">
+                                        {dateVal || '-'}
+                                      </span>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
 
-                                return (
-                                  <td
-                                    key={m}
-                                    onClick={() => {
-                                      if (dateVal) {
-                                        const reg = dictHistorial.get(folio);
-                                        setSelectedCellInfo({
-                                          equipo: group.equipo,
-                                          mesIdx: mIdx + 1,
-                                          folio,
-                                          fechaPrev: dateVal,
-                                          fechaReal: reg?.fecha_real,
-                                          tecnico: reg?.tecnico || group.equipo.tecnico,
-                                          comentarios: reg?.comentarios,
-                                          estado: status as any
-                                        });
-                                      }
-                                    }}
-                                    title={dateVal || ''}
-                                    className={`py-1 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums cursor-pointer transition-colors hover:brightness-95 whitespace-nowrap ${statusBg}`}
-                                  >
-                                    <span className="font-mono font-bold text-[6.5px] tracking-tighter block leading-none">
-                                      {dateVal || '-'}
-                                    </span>
-                                  </td>
-                                );
-                              })}
-                            </tr>
+                              {/* Row 2: Fecha Realizada */}
+                              <tr className="text-slate-700 text-[10px]">
+                                <td className="py-1 px-0.5 text-slate-500 border-r border-slate-200 font-normal text-[7px] bg-white text-center whitespace-nowrap">
+                                  Real.
+                                </td>
+                                {MESES_L.map(m => {
+                                  const realVal = group.rowReal[m];
+                                  return (
+                                    <td
+                                      key={m}
+                                      title={realVal || ''}
+                                      className="py-1 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums font-semibold text-emerald-700 bg-white whitespace-nowrap"
+                                    >
+                                      <span className="font-mono font-semibold text-[6.5px] tracking-tighter block leading-none">
+                                        {realVal || '-'}
+                                      </span>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
 
-                            {/* Row 2: Fecha Realizada */}
-                            <tr className="text-slate-700 text-[10px]">
-                              <td className="py-1 px-0.5 text-slate-500 border-r border-slate-200 font-normal text-[7px] bg-white text-center whitespace-nowrap">
-                                Real.
-                              </td>
-                              {MESES_L.map(m => {
-                                const realVal = group.rowReal[m];
-                                return (
-                                  <td
-                                    key={m}
-                                    title={realVal || ''}
-                                    className="py-1 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums font-semibold text-emerald-700 bg-white whitespace-nowrap"
-                                  >
-                                    <span className="font-mono font-semibold text-[6.5px] tracking-tighter block leading-none">
-                                      {realVal || '-'}
-                                    </span>
-                                  </td>
-                                );
-                              })}
-                            </tr>
-
-                            {/* Row 3: ID de Orden */}
-                            <tr className="text-slate-600 text-[9px]">
-                              <td className="py-1 px-0.5 text-slate-500 border-r border-slate-200 font-normal text-[7px] bg-slate-50/30 text-center whitespace-nowrap">
-                                Orden
-                              </td>
-                              {MESES_L.map(m => {
-                                const folioVal = group.rowFolio[m];
-                                const shortFolio = /^MP-\d{4}-/.test(folioVal || '') ? 'MP-' + folioVal.split('-').pop() : folioVal;
-                                return (
-                                  <td
-                                    key={m}
-                                    title={folioVal || ''}
-                                    className="py-1 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums text-slate-600 bg-slate-50/30 font-semibold whitespace-nowrap"
-                                  >
-                                    <span className="font-mono text-[6.5px] tracking-tighter block leading-none">
-                                      {shortFolio || '-'}
-                                    </span>
-                                  </td>
-                                );
-                              })}
-                            </tr>
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              {/* Row 3: ID de Orden */}
+                              <tr className="text-slate-600 text-[9px]">
+                                <td className="py-1 px-0.5 text-slate-500 border-r border-slate-200 font-normal text-[7px] bg-slate-50/30 text-center whitespace-nowrap">
+                                  Orden
+                                </td>
+                                {MESES_L.map(m => {
+                                  const folioVal = group.rowFolio[m];
+                                  const shortFolio = /^MP-\d{4}-/.test(folioVal || '') ? 'MP-' + folioVal.split('-').pop() : folioVal;
+                                  return (
+                                    <td
+                                      key={m}
+                                      title={folioVal || ''}
+                                      className="py-1 px-0.5 text-center font-mono border-r border-slate-200 tabular-nums text-slate-600 bg-slate-50/30 font-semibold whitespace-nowrap"
+                                    >
+                                      <span className="font-mono text-[6.5px] tracking-tighter block leading-none">
+                                        {shortFolio || '-'}
+                                      </span>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
                 {/* Sheet Footer: Approver Signatures & Page Number (ON EVERY SINGLE SHEET) */}

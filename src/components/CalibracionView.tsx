@@ -1100,8 +1100,7 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
                 return (
                   <div
                     key={`page_cal_${pageIdx}`}
-                    className="print-sheet bg-white rounded-xl border border-slate-300 p-5 sm:p-6 space-y-4 shadow-sm flex flex-col justify-between"
-                    style={{ minHeight: '760px' }}
+                    className="print-sheet bg-white rounded-xl border border-slate-300 p-5 sm:p-6 space-y-4 shadow-sm flex flex-col justify-between min-h-[690px]"
                   >
                     <div className="space-y-4">
                     {/* Sheet Header with Client Logo */}

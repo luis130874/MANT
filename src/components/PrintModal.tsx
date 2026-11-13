@@ -65,7 +65,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-4 sm:p-6">
+    <div className="print-modal-root fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-4 sm:p-6">
       {/* Top Bar for Action (Hidden on Print) */}
       <div className="sticky top-0 z-10 w-full max-w-4xl bg-white border border-slate-200 rounded-xl p-3 shadow-lg flex items-center justify-between gap-4 mb-4 no-print">
         <div className="flex items-center gap-2">
@@ -120,8 +120,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
           return (
             <div
               key={`${doc.folio}_${idx}`}
-              className="print-sheet bg-white text-slate-900 p-8 sm:p-10 rounded-xl shadow-md border border-slate-300 page-break-after flex flex-col justify-between gap-6"
-              style={{ minHeight: '285mm' }}
+              className="print-sheet print-sheet-portrait bg-white text-slate-900 p-8 sm:p-10 rounded-xl shadow-md border border-slate-300 page-break-after flex flex-col justify-between gap-6 min-h-[272mm]"
             >
               <div className="space-y-5">
               {/* Header with Prodexus & Client Logos */}

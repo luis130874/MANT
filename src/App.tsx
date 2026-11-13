@@ -96,7 +96,7 @@ const MainLayout: React.FC = () => {
   const isCurrentTabAllowed = hasModuleAccess(userProfile, currentTab as ModuloKey);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
+    <div className="print-app-root min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900">
       {/* 3-zone Top Bar Contract */}
       <TopBar
         currentTab={currentTab}
@@ -108,7 +108,7 @@ const MainLayout: React.FC = () => {
         }}
       />
 
-      <div className="flex-1 max-w-[1600px] w-full mx-auto flex">
+      <div className={`flex-1 max-w-[1600px] w-full mx-auto flex ${printableDocuments ? 'no-print' : ''}`}>
         {/* Navigation Sidebar */}
         <Sidebar
           currentTab={currentTab}

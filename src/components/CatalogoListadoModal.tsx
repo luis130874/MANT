@@ -346,7 +346,7 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-4 sm:p-6">
+    <div className="print-modal-root fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-4 sm:p-6">
       {/* Top Action Bar */}
       <div className="sticky top-0 z-10 w-full max-w-6xl bg-white border border-slate-200 rounded-xl p-3 shadow-lg flex flex-wrap items-center justify-between gap-3 mb-4 no-print">
         <div className="flex items-center gap-2.5">
@@ -448,8 +448,7 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
           pagedEquiposPlanes.map((chunk, pageIdx) => (
             <div
               key={`eq_plan_page_${pageIdx}`}
-              className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between"
-              style={{ minHeight: '760px' }}
+              className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between min-h-[690px]"
             >
               <div className="space-y-3">
                 {renderHeader(pageIdx)}
@@ -502,26 +501,26 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
                     ) : (
                       chunk.map((eq, i) => (
                         <tr key={eq.id || `${eq.codigo_eq}_${eq.frecuencia}_${i}`} className="bg-white">
-                          <td className="py-1.5 px-2 border border-slate-300 font-mono font-bold text-slate-900 whitespace-nowrap">
+                          <td className="py-1 px-2 border border-slate-300 font-mono font-bold text-slate-900 whitespace-nowrap">
                             {eq.codigo_eq}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300">
+                          <td className="py-1 px-2 border border-slate-300">
                             <span className="font-bold text-slate-900 block">{eq.nombre}</span>
                             <span className="text-[8.5px] text-slate-500">{eq.cliente}</span>
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-slate-700">
+                          <td className="py-1 px-2 border border-slate-300 text-slate-700">
                             {eq.sistema}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-slate-600">
+                          <td className="py-1 px-2 border border-slate-300 text-slate-600">
                             {[eq.marca, eq.modelo].filter(Boolean).join(' · ') || '-'}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-center font-semibold text-slate-800">
+                          <td className="py-1 px-2 border border-slate-300 text-center font-semibold text-slate-800">
                             {eq.frecuencia}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-center font-mono text-slate-700">
+                          <td className="py-1 px-2 border border-slate-300 text-center font-mono text-slate-700">
                             {formatDisplayDate(eq.fecha_proxima)}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-center font-bold">
+                          <td className="py-1 px-2 border border-slate-300 text-center font-bold">
                             <span
                               className={
                                 eq.criticidad === 'Alta'
@@ -534,7 +533,7 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
                               {(eq.criticidad || 'Media').toUpperCase()}
                             </span>
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-slate-700">
+                          <td className="py-1 px-2 border border-slate-300 text-slate-700">
                             {eq.tecnico || 'Sin asignar'}
                           </td>
                         </tr>
@@ -553,8 +552,7 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
           pagedEquiposConsolidado.map((chunk, pageIdx) => (
             <div
               key={`eq_cons_page_${pageIdx}`}
-              className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between"
-              style={{ minHeight: '760px' }}
+              className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between min-h-[690px]"
             >
               <div className="space-y-3">
                 {renderHeader(pageIdx)}
@@ -604,23 +602,23 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
                     ) : (
                       chunk.map((eq) => (
                         <tr key={`${eq.cliente}_${eq.codigo_eq}`} className="bg-white">
-                          <td className="py-1.5 px-2 border border-slate-300 font-mono font-bold text-slate-900 whitespace-nowrap">
+                          <td className="py-1 px-2 border border-slate-300 font-mono font-bold text-slate-900 whitespace-nowrap">
                             {eq.codigo_eq}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300">
+                          <td className="py-1 px-2 border border-slate-300">
                             <span className="font-bold text-slate-900 block">{eq.nombre}</span>
                             <span className="text-[8.5px] text-slate-500">{eq.cliente}</span>
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-slate-700">
+                          <td className="py-1 px-2 border border-slate-300 text-slate-700">
                             {eq.sistema}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-slate-600">
+                          <td className="py-1 px-2 border border-slate-300 text-slate-600">
                             {[eq.marca, eq.modelo].filter(Boolean).join(' · ') || '-'}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 font-semibold text-blue-800">
+                          <td className="py-1 px-2 border border-slate-300 font-semibold text-blue-800">
                             {eq.frecuencias.join(' · ')}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-center font-bold">
+                          <td className="py-1 px-2 border border-slate-300 text-center font-bold">
                             <span
                               className={
                                 eq.criticidad === 'Alta'
@@ -633,7 +631,7 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
                               {eq.criticidad.toUpperCase()}
                             </span>
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-slate-700">
+                          <td className="py-1 px-2 border border-slate-300 text-slate-700">
                             {eq.tecnico}
                           </td>
                         </tr>
@@ -651,8 +649,7 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
           pagedInstrumentos.map((chunk, pageIdx) => (
             <div
               key={`inst_page_${pageIdx}`}
-              className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between"
-              style={{ minHeight: '760px' }}
+              className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between min-h-[690px]"
             >
               <div className="space-y-3">
                 {renderHeader(pageIdx)}
@@ -708,10 +705,10 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
                           key={inst.codigo_inst}
                           className={inst.estado === 'Baja' ? 'bg-rose-50/30' : 'bg-white'}
                         >
-                          <td className="py-1.5 px-2 border border-slate-300 font-mono font-bold text-indigo-800 whitespace-nowrap">
+                          <td className="py-1 px-2 border border-slate-300 font-mono font-bold text-indigo-800 whitespace-nowrap">
                             {inst.codigo_inst}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300">
+                          <td className="py-1 px-2 border border-slate-300">
                             <span className="font-bold text-slate-900 block">{inst.nombre}</span>
                             <span className="text-[8.5px] text-slate-500">
                               {[
@@ -723,30 +720,30 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
                                 .join(' · ') || 'Sin especificaciones'}
                             </span>
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300">
+                          <td className="py-1 px-2 border border-slate-300">
                             <span className="font-semibold text-slate-800 block">{inst.cliente}</span>
                             <span className="text-[8.5px] text-slate-500">
                               {inst.equipo_asociado ? `Eq: ${inst.equipo_asociado}` : 'Uso general'}
                               {inst.ubicacion ? ` · ${inst.ubicacion}` : ''}
                             </span>
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300">
+                          <td className="py-1 px-2 border border-slate-300">
                             <span className="font-medium text-slate-800 block">{inst.variable_medicion}</span>
                             <span className="font-mono text-[8.5px] text-slate-500">{inst.rango_operacion}</span>
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-center font-mono font-semibold text-slate-800">
+                          <td className="py-1 px-2 border border-slate-300 text-center font-mono font-semibold text-slate-800">
                             {inst.tolerancia_emp}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-center">
+                          <td className="py-1 px-2 border border-slate-300 text-center">
                             <span className="font-semibold text-slate-800 block">{inst.frecuencia}</span>
                             <span className="font-mono text-[8.5px] text-indigo-700">
                               {formatDisplayDate(inst.fecha_proxima || inst.fecha_alta)}
                             </span>
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-slate-700">
+                          <td className="py-1 px-2 border border-slate-300 text-slate-700">
                             {inst.metrologo_habitual || 'Metrología Interna'}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-center font-bold">
+                          <td className="py-1 px-2 border border-slate-300 text-center font-bold">
                             <span
                               className={
                                 inst.estado === 'Activo' ? 'text-emerald-700' : 'text-rose-700'

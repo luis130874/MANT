@@ -332,8 +332,7 @@ export const PlanMaestroView: React.FC = () => {
             return (
               <div
                 key={`page_${pageIdx}`}
-                className="print-sheet bg-white rounded-xl border border-slate-300 p-5 sm:p-6 space-y-4 shadow-sm flex flex-col justify-between"
-                style={{ minHeight: '760px' }}
+                className="print-sheet bg-white rounded-xl border border-slate-300 p-5 sm:p-6 space-y-4 shadow-sm flex flex-col justify-between min-h-[690px]"
               >
                 {/* Top Content Block (Header + Table stays top-aligned) */}
                 <div className="space-y-4">

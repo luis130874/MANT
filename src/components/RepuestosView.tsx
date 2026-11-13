@@ -318,8 +318,8 @@ export const RepuestosView: React.FC = () => {
   // Current Client Object
   const currentClienteObj = clientes.find(c => c.nombre.trim() === selectedCliente.trim());
 
-  // Paginated chunks for PDF / Print Sheet (12 items per landscape A4 sheet)
-  const ITEMS_PER_PRINT_PAGE = 12;
+  // Paginated chunks for PDF / Print Sheet (14 items per landscape A4 sheet)
+  const ITEMS_PER_PRINT_PAGE = 14;
   const totalPrintPages = Math.max(1, Math.ceil(repuestosFiltrados.length / ITEMS_PER_PRINT_PAGE));
   const pagedRepuestos = useMemo(() => {
     const pages: Repuesto[][] = [];
@@ -1476,8 +1476,7 @@ export const RepuestosView: React.FC = () => {
         {pagedRepuestos.map((chunk, pageIdx) => (
           <div
             key={`pdf_rep_page_${pageIdx}`}
-            className="print-sheet bg-white text-slate-900 p-6 space-y-4 flex flex-col justify-between"
-            style={{ minHeight: '760px' }}
+            className="print-sheet bg-white text-slate-900 p-6 space-y-4 flex flex-col justify-between min-h-[690px]"
           >
             <div className="space-y-3">
               {/* Sheet Header */}
@@ -1573,20 +1572,20 @@ export const RepuestosView: React.FC = () => {
                       const valor = rep.stock_actual * (rep.precio_unitario || 0);
                       return (
                         <tr key={rep.id} className={isBajo ? 'bg-amber-50/40' : 'bg-white'}>
-                          <td className="py-1.5 px-2 border border-slate-300 font-mono">
+                          <td className="py-1 px-2 border border-slate-300 font-mono">
                             <span className="font-bold text-slate-900 block">{rep.codigo_repuesto}</span>
                             {rep.numero_parte_fabricante && (
                               <span className="text-[8.5px] text-slate-500">P/N: {rep.numero_parte_fabricante}</span>
                             )}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300">
+                          <td className="py-1 px-2 border border-slate-300">
                             <span className="font-bold text-slate-900 block">{rep.nombre}</span>
                             <span className="text-[8.5px] text-slate-500">{rep.categoria} · {rep.cliente}</span>
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 font-mono text-[9px] text-blue-800">
+                          <td className="py-1 px-2 border border-slate-300 font-mono text-[9px] text-blue-800">
                             {rep.equipos_asociados.length > 0 ? rep.equipos_asociados.join(', ') : 'General'}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-center font-bold">
+                          <td className="py-1 px-2 border border-slate-300 text-center font-bold">
                             <span className={
                               rep.criticidad === 'Crítico'
                                 ? 'text-rose-700'
@@ -1597,23 +1596,23 @@ export const RepuestosView: React.FC = () => {
                               {rep.criticidad.toUpperCase()}
                             </span>
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-center font-mono">
+                          <td className="py-1 px-2 border border-slate-300 text-center font-mono">
                             <span className={`font-black ${isBajo ? 'text-rose-700' : 'text-slate-900'}`}>
                               {rep.stock_actual}
                             </span>
                             <span className="text-slate-500"> / {rep.stock_minimo}</span>
                             <span className="block text-[8.5px] text-slate-500">{rep.unidad_medida}</span>
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-slate-700">
+                          <td className="py-1 px-2 border border-slate-300 text-slate-700">
                             {rep.ubicacion_almacen}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-right font-mono">
+                          <td className="py-1 px-2 border border-slate-300 text-right font-mono">
                             ${rep.precio_unitario.toFixed(2)}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300 text-right font-mono font-bold text-slate-900">
+                          <td className="py-1 px-2 border border-slate-300 text-right font-mono font-bold text-slate-900">
                             ${valor.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
-                          <td className="py-1.5 px-2 border border-slate-300">
+                          <td className="py-1 px-2 border border-slate-300">
                             <span className="font-semibold text-slate-800 block">{rep.proveedor}</span>
                             <span className="text-[8.5px] text-slate-500">Entrega: {rep.tiempo_entrega_dias || 3}d</span>
                           </td>
@@ -1654,7 +1653,7 @@ export const RepuestosView: React.FC = () => {
 
       {/* INTERACTIVE MODAL: VISTA PREVIA DE IMPRESIÓN Y PDF DEL INVENTARIO */}
       {showPrintPreview && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-4 sm:p-6">
+        <div className="print-modal-root fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col items-center justify-start overflow-y-auto p-4 sm:p-6">
           <div className="sticky top-0 z-10 w-full max-w-6xl bg-white border border-slate-200 rounded-xl p-3 shadow-lg flex items-center justify-between gap-4 mb-4 no-print">
             <div className="flex items-center gap-2">
               <Printer className="w-5 h-5 text-blue-600" />
@@ -1704,8 +1703,7 @@ export const RepuestosView: React.FC = () => {
             {pagedRepuestos.map((chunk, pageIdx) => (
               <div
                 key={`preview_rep_page_${pageIdx}`}
-                className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between"
-                style={{ minHeight: '760px' }}
+                className="print-sheet bg-white text-slate-900 p-6 rounded-xl shadow-md border border-slate-300 space-y-4 flex flex-col justify-between min-h-[690px]"
               >
                 <div className="space-y-3">
                   <div className="border-b-2 border-slate-900 pb-2.5 flex items-start justify-between gap-4">
@@ -1798,20 +1796,20 @@ export const RepuestosView: React.FC = () => {
                           const valor = rep.stock_actual * (rep.precio_unitario || 0);
                           return (
                             <tr key={rep.id} className={isBajo ? 'bg-amber-50/40' : 'bg-white'}>
-                              <td className="py-1.5 px-2 border border-slate-300 font-mono">
+                              <td className="py-1 px-2 border border-slate-300 font-mono">
                                 <span className="font-bold text-slate-900 block">{rep.codigo_repuesto}</span>
                                 {rep.numero_parte_fabricante && (
                                   <span className="text-[8.5px] text-slate-500">P/N: {rep.numero_parte_fabricante}</span>
                                 )}
                               </td>
-                              <td className="py-1.5 px-2 border border-slate-300">
+                              <td className="py-1 px-2 border border-slate-300">
                                 <span className="font-bold text-slate-900 block">{rep.nombre}</span>
                                 <span className="text-[8.5px] text-slate-500">{rep.categoria} · {rep.cliente}</span>
                               </td>
-                              <td className="py-1.5 px-2 border border-slate-300 font-mono text-[9px] text-blue-800">
+                              <td className="py-1 px-2 border border-slate-300 font-mono text-[9px] text-blue-800">
                                 {rep.equipos_asociados.length > 0 ? rep.equipos_asociados.join(', ') : 'General'}
                               </td>
-                              <td className="py-1.5 px-2 border border-slate-300 text-center font-bold">
+                              <td className="py-1 px-2 border border-slate-300 text-center font-bold">
                                 <span className={
                                   rep.criticidad === 'Crítico'
                                     ? 'text-rose-700'
@@ -1822,23 +1820,23 @@ export const RepuestosView: React.FC = () => {
                                   {rep.criticidad.toUpperCase()}
                                 </span>
                               </td>
-                              <td className="py-1.5 px-2 border border-slate-300 text-center font-mono">
+                              <td className="py-1 px-2 border border-slate-300 text-center font-mono">
                                 <span className={`font-black ${isBajo ? 'text-rose-700' : 'text-slate-900'}`}>
                                   {rep.stock_actual}
                                 </span>
                                 <span className="text-slate-500"> / {rep.stock_minimo}</span>
                                 <span className="block text-[8.5px] text-slate-500">{rep.unidad_medida}</span>
                               </td>
-                              <td className="py-1.5 px-2 border border-slate-300 text-slate-700">
+                              <td className="py-1 px-2 border border-slate-300 text-slate-700">
                                 {rep.ubicacion_almacen}
                               </td>
-                              <td className="py-1.5 px-2 border border-slate-300 text-right font-mono">
+                              <td className="py-1 px-2 border border-slate-300 text-right font-mono">
                                 ${rep.precio_unitario.toFixed(2)}
                               </td>
-                              <td className="py-1.5 px-2 border border-slate-300 text-right font-mono font-bold text-slate-900">
+                              <td className="py-1 px-2 border border-slate-300 text-right font-mono font-bold text-slate-900">
                                 ${valor.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </td>
-                              <td className="py-1.5 px-2 border border-slate-300">
+                              <td className="py-1 px-2 border border-slate-300">
                                 <span className="font-semibold text-slate-800 block">{rep.proveedor}</span>
                                 <span className="text-[8.5px] text-slate-500">Entrega: {rep.tiempo_entrega_dias || 3}d</span>
                               </td>

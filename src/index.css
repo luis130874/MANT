@@ -13,9 +13,29 @@
     margin: 8mm;
   }
 
-  body {
+  @page portrait-order {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+
+  html,
+  body,
+  #root,
+  .print-app-root {
     background: #ffffff !important;
     color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    min-height: 0 !important;
   }
 
   .no-print {
@@ -26,34 +46,55 @@
     display: block !important;
   }
 
+  .print-modal-root {
+    position: static !important;
+    inset: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+    overflow: visible !important;
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  .print-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
   .print-sheet {
     page-break-after: always !important;
     break-after: page !important;
     page-break-inside: avoid !important;
     break-inside: avoid !important;
-    margin: 0 0 0 0 !important;
+    margin: 0 !important;
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
+    border-radius: 0 !important;
     width: 100% !important;
-    min-height: 98vh !important;
+    min-height: 186mm !important;
     box-sizing: border-box !important;
     display: flex !important;
     flex-direction: column !important;
     justify-content: space-between !important;
   }
 
+  .print-sheet-portrait {
+    page: portrait-order;
+    min-height: 272mm !important;
+  }
+
   .print-sheet:last-child {
     page-break-after: auto !important;
     break-after: auto !important;
-  }
-
-  .print-container {
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    box-shadow: none !important;
-    border: none !important;
   }
 
   table {

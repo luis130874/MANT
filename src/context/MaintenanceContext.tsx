@@ -160,7 +160,14 @@ interface MaintenanceContextType {
     tecnico: string;
     duracion_horas?: number;
     repuestos_utilizados?: string;
+    tareas_completadas?: string[];
     frecuencia?: string;
+    firma_tecnico?: string;
+    firma_supervisor?: string;
+    firmado_por?: string;
+    firmado_supervisor_por?: string;
+    fecha_firma_digital?: string;
+    ejecucion_digital?: boolean;
   }) => void;
 
   // Correctivos
@@ -172,6 +179,12 @@ interface MaintenanceContextType {
     tecnico: string;
     acciones_realizadas: string;
     repuestos_utilizados?: string;
+    firma_tecnico?: string;
+    firma_supervisor?: string;
+    firmado_por?: string;
+    firmado_supervisor_por?: string;
+    fecha_firma_digital?: string;
+    ejecucion_digital?: boolean;
   }) => void;
   deleteCorrectivo: (id_ot: string) => void;
 
@@ -184,6 +197,12 @@ interface MaintenanceContextType {
     tecnico: string;
     acciones_realizadas: string;
     materiales_utilizados?: string;
+    firma_tecnico?: string;
+    firma_supervisor?: string;
+    firmado_por?: string;
+    firmado_supervisor_por?: string;
+    fecha_firma_digital?: string;
+    ejecucion_digital?: boolean;
   }) => void;
   deleteOrdenTrabajo: (id_ot: string) => void;
 
@@ -210,6 +229,12 @@ interface MaintenanceContextType {
     repuestos_utilizados?: string;
     numero_certificado?: string;
     proxima_calibracion?: string;
+    firma_tecnico?: string;
+    firma_supervisor?: string;
+    firmado_por?: string;
+    firmado_supervisor_por?: string;
+    fecha_firma_digital?: string;
+    ejecucion_digital?: boolean;
   }) => void;
   certificarCalibracionProyectada: (
     orderData: Omit<OrdenCalibracion, 'id_ot' | 'estado' | 'fecha_real'> & {
@@ -229,6 +254,12 @@ interface MaintenanceContextType {
       repuestos_utilizados?: string;
       numero_certificado?: string;
       proxima_calibracion?: string;
+      firma_tecnico?: string;
+      firma_supervisor?: string;
+      firmado_por?: string;
+      firmado_supervisor_por?: string;
+      fecha_firma_digital?: string;
+      ejecucion_digital?: boolean;
     }
   ) => string;
   deleteOrdenCalibracion: (id_ot: string) => void;
@@ -1172,7 +1203,14 @@ export const MaintenanceProvider: React.FC<{ children: React.ReactNode }> = ({ c
     tecnico: string;
     duracion_horas?: number;
     repuestos_utilizados?: string;
+    tareas_completadas?: string[];
     frecuencia?: string;
+    firma_tecnico?: string;
+    firma_supervisor?: string;
+    firmado_por?: string;
+    firmado_supervisor_por?: string;
+    fecha_firma_digital?: string;
+    ejecucion_digital?: boolean;
   }) => {
     const eqMatch = stateRef.current.equipos.find(
       (e) =>
@@ -1229,6 +1267,12 @@ export const MaintenanceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       tecnico: string;
       acciones_realizadas: string;
       repuestos_utilizados?: string;
+      firma_tecnico?: string;
+      firma_supervisor?: string;
+      firmado_por?: string;
+      firmado_supervisor_por?: string;
+      fecha_firma_digital?: string;
+      ejecucion_digital?: boolean;
     }
   ) => {
     const target = stateRef.current.correctivos.find((c) => c.id_ot === id_ot);
@@ -1253,7 +1297,13 @@ export const MaintenanceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           fecha_real: data.fecha_real,
           tecnico: data.tecnico,
           acciones_realizadas: data.acciones_realizadas,
-          repuestos_utilizados: data.repuestos_utilizados || c.repuestos_utilizados
+          repuestos_utilizados: data.repuestos_utilizados || c.repuestos_utilizados,
+          ...(data.firma_tecnico !== undefined ? { firma_tecnico: data.firma_tecnico } : {}),
+          ...(data.firma_supervisor !== undefined ? { firma_supervisor: data.firma_supervisor } : {}),
+          ...(data.firmado_por !== undefined ? { firmado_por: data.firmado_por } : {}),
+          ...(data.firmado_supervisor_por !== undefined ? { firmado_supervisor_por: data.firmado_supervisor_por } : {}),
+          ...(data.fecha_firma_digital !== undefined ? { fecha_firma_digital: data.fecha_firma_digital } : {}),
+          ...(data.ejecucion_digital !== undefined ? { ejecucion_digital: data.ejecucion_digital } : {})
         };
       }
       return c;
@@ -1310,6 +1360,12 @@ export const MaintenanceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       tecnico: string;
       acciones_realizadas: string;
       materiales_utilizados?: string;
+      firma_tecnico?: string;
+      firma_supervisor?: string;
+      firmado_por?: string;
+      firmado_supervisor_por?: string;
+      fecha_firma_digital?: string;
+      ejecucion_digital?: boolean;
     }
   ) => {
     const target = stateRef.current.ordenesTrabajo.find((o) => o.id_ot === id_ot);
@@ -1334,7 +1390,13 @@ export const MaintenanceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           fecha_real: data.fecha_real,
           tecnico: data.tecnico,
           acciones_realizadas: data.acciones_realizadas,
-          materiales_utilizados: data.materiales_utilizados || o.materiales_utilizados
+          materiales_utilizados: data.materiales_utilizados || o.materiales_utilizados,
+          ...(data.firma_tecnico !== undefined ? { firma_tecnico: data.firma_tecnico } : {}),
+          ...(data.firma_supervisor !== undefined ? { firma_supervisor: data.firma_supervisor } : {}),
+          ...(data.firmado_por !== undefined ? { firmado_por: data.firmado_por } : {}),
+          ...(data.firmado_supervisor_por !== undefined ? { firmado_supervisor_por: data.firmado_supervisor_por } : {}),
+          ...(data.fecha_firma_digital !== undefined ? { fecha_firma_digital: data.fecha_firma_digital } : {}),
+          ...(data.ejecucion_digital !== undefined ? { ejecucion_digital: data.ejecucion_digital } : {})
         };
       }
       return o;
@@ -1457,6 +1519,12 @@ export const MaintenanceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       repuestos_utilizados?: string;
       numero_certificado?: string;
       proxima_calibracion?: string;
+      firma_tecnico?: string;
+      firma_supervisor?: string;
+      firmado_por?: string;
+      firmado_supervisor_por?: string;
+      fecha_firma_digital?: string;
+      ejecucion_digital?: boolean;
     }
   ) => {
     const target = stateRef.current.calibraciones.find((c) => c.id_ot === id_ot);
@@ -1493,7 +1561,13 @@ export const MaintenanceProvider: React.FC<{ children: React.ReactNode }> = ({ c
           observaciones: data.observaciones || c.observaciones,
           repuestos_utilizados: data.repuestos_utilizados || c.repuestos_utilizados,
           numero_certificado: data.numero_certificado || `CERT-${id_ot.replace('CAL-', '')}`,
-          proxima_calibracion: nextCalStr
+          proxima_calibracion: nextCalStr,
+          ...(data.firma_tecnico !== undefined ? { firma_tecnico: data.firma_tecnico } : {}),
+          ...(data.firma_supervisor !== undefined ? { firma_supervisor: data.firma_supervisor } : {}),
+          ...(data.firmado_por !== undefined ? { firmado_por: data.firmado_por } : {}),
+          ...(data.firmado_supervisor_por !== undefined ? { firmado_supervisor_por: data.firmado_supervisor_por } : {}),
+          ...(data.fecha_firma_digital !== undefined ? { fecha_firma_digital: data.fecha_firma_digital } : {}),
+          ...(data.ejecucion_digital !== undefined ? { ejecucion_digital: data.ejecucion_digital } : {})
         };
       }
       return c;
@@ -1522,6 +1596,12 @@ export const MaintenanceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       repuestos_utilizados?: string;
       numero_certificado?: string;
       proxima_calibracion?: string;
+      firma_tecnico?: string;
+      firma_supervisor?: string;
+      firmado_por?: string;
+      firmado_supervisor_por?: string;
+      fecha_firma_digital?: string;
+      ejecucion_digital?: boolean;
     }
   ): string => {
     const dateObj = parseFecha(orderData.fecha_programada) || parseFecha(orderData.fecha_emision) || new Date();
@@ -1576,7 +1656,13 @@ export const MaintenanceProvider: React.FC<{ children: React.ReactNode }> = ({ c
       observaciones: cierreData.observaciones || restOrder.observaciones,
       repuestos_utilizados: cierreData.repuestos_utilizados,
       numero_certificado: cierreData.numero_certificado || `CAL-CERT-${folio.replace('CAL-', '')}`,
-      proxima_calibracion: nextCalStr
+      proxima_calibracion: nextCalStr,
+      ...(cierreData.firma_tecnico !== undefined ? { firma_tecnico: cierreData.firma_tecnico } : {}),
+      ...(cierreData.firma_supervisor !== undefined ? { firma_supervisor: cierreData.firma_supervisor } : {}),
+      ...(cierreData.firmado_por !== undefined ? { firmado_por: cierreData.firmado_por } : {}),
+      ...(cierreData.firmado_supervisor_por !== undefined ? { firmado_supervisor_por: cierreData.firmado_supervisor_por } : {}),
+      ...(cierreData.fecha_firma_digital !== undefined ? { fecha_firma_digital: cierreData.fecha_firma_digital } : {}),
+      ...(cierreData.ejecucion_digital !== undefined ? { ejecucion_digital: cierreData.ejecucion_digital } : {})
     };
 
     const currentEmpItems = (modulesMapRef.current[empId]?.calibraciones as OrdenCalibracion[]) || [];

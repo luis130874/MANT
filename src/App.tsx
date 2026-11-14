@@ -23,6 +23,15 @@ import { ConfiguracionView } from './components/ConfiguracionView';
 import { UsuariosView } from './components/UsuariosView';
 import { PrintModal, PrintableDocument } from './components/PrintModal';
 import { NewOrderModal } from './components/NewOrderModal';
+import { ShareOrderModal } from './components/ShareOrderModal';
+import { DigitalOrderExecutionModal } from './components/DigitalOrderExecutionModal';
+import {
+  DeepLinkOrderQuery,
+  DigitalOrderTarget,
+  clearDeepLinkOrderStorage,
+  parseDeepLinkOrderFromWindow,
+  resolveDigitalOrderTarget
+} from './utils/digitalOrderLink';
 import { getFirstPermittedTab, hasActionAccess, hasModuleAccess } from './utils/rbac';
 import { ModuloKey } from './types';
 import { CheckCircle2, AlertCircle, X, Lock } from 'lucide-react';
@@ -72,16 +81,84 @@ const ToastContainer: React.FC = () => {
 };
 
 const MainLayout: React.FC = () => {
-  const { userProfile } = useAuth();
+  const { userProfile, isSuperAdmin } = useAuth();
+  const {
+    clientes,
+    equipos,
+    historial,
+    correctivos,
+    ordenesTrabajo,
+    calibraciones,
+    instrumentos,
+    frecuencias,
+    selectedAnio,
+    setSelectedCliente,
+    cloudLoading,
+    addToast
+  } = useMaintenance();
+
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [isNewOrderModalOpen, setIsNewOrderModalOpen] = useState(false);
   const [printableDocuments, setPrintableDocuments] = useState<PrintableDocument[] | null>(null);
+  const [sharingOrder, setSharingOrder] = useState<DigitalOrderTarget | null>(null);
+  const [executingOrder, setExecutingOrder] = useState<DigitalOrderTarget | null>(null);
+  const [pendingDeepLink, setPendingDeepLink] = useState<DeepLinkOrderQuery | null>(() =>
+    parseDeepLinkOrderFromWindow()
+  );
 
   useEffect(() => {
     if (userProfile && !hasModuleAccess(userProfile, currentTab as ModuloKey)) {
       setCurrentTab(getFirstPermittedTab(userProfile));
     }
   }, [userProfile, currentTab]);
+
+  // Resolve deep-linked digital order once Firestore cloud data has loaded
+  useEffect(() => {
+    if (!pendingDeepLink || cloudLoading || !userProfile) return;
+
+    const resolved = resolveDigitalOrderTarget(pendingDeepLink, {
+      clientes,
+      equipos,
+      historial,
+      correctivos,
+      ordenesTrabajo,
+      calibraciones,
+      instrumentos,
+      frecuencias,
+      defaultAnio: selectedAnio
+    });
+
+    if (resolved) {
+      if (isSuperAdmin && resolved.cliente) {
+        setSelectedCliente(resolved.cliente);
+      }
+      setExecutingOrder(resolved);
+      setPendingDeepLink(null);
+    } else if (equipos.length > 0 || clientes.length > 0 || correctivos.length > 0 || ordenesTrabajo.length > 0 || calibraciones.length > 0) {
+      addToast(
+        `No se encontró la orden "${pendingDeepLink.folio}" en su planta autorizada.`,
+        'warning'
+      );
+      clearDeepLinkOrderStorage();
+      setPendingDeepLink(null);
+    }
+  }, [
+    pendingDeepLink,
+    cloudLoading,
+    userProfile,
+    clientes,
+    equipos,
+    historial,
+    correctivos,
+    ordenesTrabajo,
+    calibraciones,
+    instrumentos,
+    frecuencias,
+    selectedAnio,
+    isSuperAdmin,
+    setSelectedCliente,
+    addToast
+  ]);
 
   const handlePrintSingleOrder = (doc: PrintableDocument) => {
     if (!hasActionAccess(userProfile, 'imprimir_pdf')) return;
@@ -91,6 +168,11 @@ const MainLayout: React.FC = () => {
   const handlePrintBatchOrders = (docs: PrintableDocument[]) => {
     if (!hasActionAccess(userProfile, 'imprimir_pdf')) return;
     setPrintableDocuments(docs);
+  };
+
+  const handleCloseExecutionModal = () => {
+    setExecutingOrder(null);
+    clearDeepLinkOrderStorage();
   };
 
   const isCurrentTabAllowed = hasModuleAccess(userProfile, currentTab as ModuloKey);
@@ -133,19 +215,31 @@ const MainLayout: React.FC = () => {
                 <PreventivosView
                   onPrintOrder={handlePrintSingleOrder}
                   onPrintBatch={handlePrintBatchOrders}
+                  onShareOrder={setSharingOrder}
+                  onOpenDigitalExecution={setExecutingOrder}
                 />
               )}
               {currentTab === 'correctivos' && (
-                <CorrectivosView onPrintOrder={handlePrintSingleOrder} />
+                <CorrectivosView
+                  onPrintOrder={handlePrintSingleOrder}
+                  onShareOrder={setSharingOrder}
+                  onOpenDigitalExecution={setExecutingOrder}
+                />
               )}
               {currentTab === 'ordenes' && (
-                <OrdenesTrabajoView onPrintOrder={handlePrintSingleOrder} />
+                <OrdenesTrabajoView
+                  onPrintOrder={handlePrintSingleOrder}
+                  onShareOrder={setSharingOrder}
+                  onOpenDigitalExecution={setExecutingOrder}
+                />
               )}
               {currentTab === 'calibracion' && (
                 <CalibracionView
                   initialTab="plan"
                   onPrintCalibration={handlePrintSingleOrder}
                   onPrintBatchCalibration={handlePrintBatchOrders}
+                  onShareOrder={setSharingOrder}
+                  onOpenDigitalExecution={setExecutingOrder}
                 />
               )}
               {currentTab === 'instrumentos' && (
@@ -153,6 +247,8 @@ const MainLayout: React.FC = () => {
                   initialTab="instrumentos"
                   onPrintCalibration={handlePrintSingleOrder}
                   onPrintBatchCalibration={handlePrintBatchOrders}
+                  onShareOrder={setSharingOrder}
+                  onOpenDigitalExecution={setExecutingOrder}
                 />
               )}
               {currentTab === 'equipos' && <EquiposView />}
@@ -171,6 +267,25 @@ const MainLayout: React.FC = () => {
         isOpen={isNewOrderModalOpen}
         onClose={() => setIsNewOrderModalOpen(false)}
       />
+
+      {/* Share Digital Order Link / WhatsApp Modal */}
+      {sharingOrder && (
+        <ShareOrderModal
+          target={sharingOrder}
+          onClose={() => setSharingOrder(null)}
+          onOpenDigitalExecution={(ord) => setExecutingOrder(ord)}
+        />
+      )}
+
+      {/* Mobile-Friendly Digital Field Execution & Touch Signature Modal */}
+      {executingOrder && (
+        <DigitalOrderExecutionModal
+          target={executingOrder}
+          onClose={handleCloseExecutionModal}
+          onOpenPrint={handlePrintSingleOrder}
+          onOpenShare={(ord) => setSharingOrder(ord)}
+        />
+      )}
 
       {/* High-Fidelity Printable Document Modal */}
       {printableDocuments && (

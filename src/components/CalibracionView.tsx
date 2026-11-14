@@ -29,7 +29,9 @@ import {
   Check,
   Gauge,
   XCircle,
-  FileText
+  FileText,
+  Share2,
+  Smartphone
 } from 'lucide-react';
 import { useMaintenance } from '../context/MaintenanceContext';
 import { useAuth } from '../context/AuthContext';
@@ -44,30 +46,27 @@ import {
   parseFecha
 } from '../utils/maintenanceEngine';
 import { exportElementToPDF } from '../utils/pdfGenerator';
+import { resolveSheetClientes } from '../utils/logoResolver';
 import { OrdenCalibracion, PuntoCalibracion, Equipo, Instrumento } from '../types';
 import { RepuestosConsumoSelector, SelectedRepuestoConsumo } from './RepuestosConsumoSelector';
 import { CatalogoListadoModal } from './CatalogoListadoModal';
+import { PrintableDocument } from './PrintModal';
+import { DigitalOrderTarget } from '../utils/digitalOrderLink';
 
 interface CalibracionViewProps {
   initialTab?: 'plan' | 'instrumentos' | 'emision' | 'cierre' | 'historial';
-  onPrintCalibration?: (order: {
-    tipo: 'CAL';
-    folio: string;
-    equipo: Equipo;
-    calibracion: OrdenCalibracion;
-  }) => void;
-  onPrintBatchCalibration?: (orders: Array<{
-    tipo: 'CAL';
-    folio: string;
-    equipo: Equipo;
-    calibracion: OrdenCalibracion;
-  }>) => void;
+  onPrintCalibration?: (order: PrintableDocument) => void;
+  onPrintBatchCalibration?: (orders: PrintableDocument[]) => void;
+  onShareOrder?: (target: DigitalOrderTarget) => void;
+  onOpenDigitalExecution?: (target: DigitalOrderTarget) => void;
 }
 
 export const CalibracionView: React.FC<CalibracionViewProps> = ({
   initialTab,
   onPrintCalibration,
-  onPrintBatchCalibration
+  onPrintBatchCalibration,
+  onShareOrder,
+  onOpenDigitalExecution
 }) => {
   const {
     selectedCliente,
@@ -420,7 +419,32 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
     setActiveTab('historial');
   };
 
-  const buildPrintableCalDoc = (cal: OrdenCalibracion) => {
+  const buildDigitalTargetCAL = (
+    cal: OrdenCalibracion,
+    extra?: { isProjectedCal?: boolean; mes_n?: number }
+  ): DigitalOrderTarget => {
+    const eqMatched = equipos.find(
+      e => e.codigo_eq === cal.codigo_eq && e.cliente.trim() === cal.cliente.trim()
+    ) || equipos.find(e => e.codigo_eq === cal.codigo_eq);
+    const dProg = parseFecha(cal.fecha_programada || cal.fecha_tentativa);
+    return {
+      tipo: 'CAL',
+      folio: cal.id_ot,
+      cliente: cal.cliente,
+      codigoEq: cal.codigo_eq,
+      nombreActivo: cal.instrumento_nombre,
+      fechaProgramada: cal.fecha_programada,
+      mes_n: extra?.mes_n || (dProg ? dProg.getMonth() + 1 : undefined),
+      anio: dProg ? dProg.getFullYear() : selectedAnio,
+      frecuencia: cal.frecuencia_calibracion,
+      tecnicoSugerido: cal.metrologo_laboratorio,
+      equipo: eqMatched,
+      calibracion: cal,
+      isProjectedCal: extra?.isProjectedCal
+    };
+  };
+
+  const buildPrintableCalDoc = (cal: OrdenCalibracion): PrintableDocument => {
     const eqMatched = equipos.find(
       e => e.codigo_eq === cal.codigo_eq && e.cliente.trim() === cal.cliente.trim()
     ) || equipos.find(e => e.codigo_eq === cal.codigo_eq);
@@ -442,7 +466,15 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
       tipo: 'CAL' as const,
       folio: cal.id_ot,
       equipo: eq,
-      calibracion: cal
+      calibracion: cal,
+      isCerrada: cal.estado !== 'Pendiente',
+      fechaReal: cal.fecha_real,
+      firmaTecnico: cal.firma_tecnico,
+      firmaSupervisor: cal.firma_supervisor,
+      firmadoPor: cal.firmado_por,
+      firmadoSupervisorPor: cal.firmado_supervisor_por,
+      fechaFirmaDigital: cal.fecha_firma_digital,
+      ejecucionDigital: cal.ejecucion_digital
     };
   };
 
@@ -591,6 +623,7 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
 
   interface CalMatrixRow {
     codigo: string;
+    cliente: string;
     nombre: string;
     variable: string;
     rango: string;
@@ -899,6 +932,7 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
 
     return {
       codigo: inst.codigo_inst,
+      cliente: inst.cliente,
       nombre: inst.nombre,
       variable: inst.variable_medicion,
       rango: inst.rango_operacion,
@@ -1103,27 +1137,52 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
                     className="print-sheet bg-white rounded-xl border border-slate-300 p-5 sm:p-6 space-y-4 shadow-sm flex flex-col justify-between min-h-[690px]"
                   >
                     <div className="space-y-4">
-                    {/* Sheet Header with Client Logo */}
+                    {/* Sheet Header with Prodexus & Client Logo */}
                     {(() => {
-                      const currentClienteObj = clientes.find(c => c.nombre.trim() === selectedCliente.trim());
+                      const sheetClientes = resolveSheetClientes(
+                        clientes,
+                        selectedCliente,
+                        chunk.map(r => r.cliente)
+                      );
+                      const plantLabel =
+                        selectedCliente.trim().toLowerCase() === 'todos' && sheetClientes.length === 1
+                          ? sheetClientes[0].nombre
+                          : selectedCliente;
                       return (
                         <div className="border-b border-slate-900 pb-2.5 flex items-start justify-between gap-4">
                           <div className="flex items-center gap-3">
-                            <div className="h-11 max-w-[150px] bg-white rounded-lg border border-indigo-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
+                            <div className="h-12 max-w-[155px] bg-white rounded-lg border border-indigo-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
                               <img
                                 src="/assets/aistudio/prodexus_921c729e.jpeg"
                                 alt="Prodexus Metrología"
                                 className="max-h-full max-w-full object-contain"
                               />
                             </div>
-                            {currentClienteObj?.logo && (
-                              <div className="h-11 max-w-[140px] bg-white rounded-lg border border-indigo-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
-                                <img
-                                  src={currentClienteObj.logo}
-                                  alt={`Logo ${currentClienteObj.nombre}`}
-                                  className="max-h-full max-w-full object-contain"
-                                />
-                              </div>
+                            {sheetClientes.map(cli =>
+                              cli.logo ? (
+                                <div
+                                  key={cli.codigo}
+                                  className="h-12 max-w-[150px] bg-white rounded-lg border border-indigo-200 p-1 flex items-center justify-center shrink-0 shadow-2xs"
+                                >
+                                  <img
+                                    src={cli.logo}
+                                    alt={`Logo ${cli.nombre}`}
+                                    className="max-h-full max-w-full object-contain"
+                                  />
+                                </div>
+                              ) : (
+                                <div
+                                  key={cli.codigo}
+                                  className="h-12 max-w-[160px] bg-indigo-950 text-white rounded-lg border border-indigo-800 px-2.5 flex flex-col justify-center shrink-0 shadow-2xs"
+                                >
+                                  <span className="text-[9px] font-black uppercase tracking-tight leading-tight line-clamp-2">
+                                    {cli.nombre}
+                                  </span>
+                                  {cli.rut && (
+                                    <span className="text-[7px] font-mono text-indigo-200">{cli.rut}</span>
+                                  )}
+                                </div>
+                              )
                             )}
                             <div>
                               <div className="flex items-center gap-2">
@@ -1138,7 +1197,7 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
                                 PRODEXUS Metrología Industrial · Plan Anual de Calibración {selectedAnio}
                               </h2>
                               <p className="text-[9px] text-slate-600 font-medium mt-0.5">
-                                Planta: <span className="font-bold text-slate-900">{selectedCliente.toUpperCase()}</span> · Emisión: <span className="font-mono">{new Date().toLocaleDateString('es-ES')}</span> · Control de Instrumentación Crítica
+                                Planta: <span className="font-bold text-slate-900">{plantLabel.toUpperCase()}</span> · Emisión: <span className="font-mono">{new Date().toLocaleDateString('es-ES')}</span> · Control de Instrumentación Crítica
                               </p>
                             </div>
                           </div>
@@ -2237,7 +2296,29 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
                               </p>
                             </div>
 
-                            <div className="flex items-center gap-1.5 shrink-0">
+                            <div className="flex items-center gap-1.5 flex-wrap justify-end shrink-0">
+                              {onShareOrder && (
+                                <button
+                                  type="button"
+                                  onClick={() => onShareOrder(buildDigitalTargetCAL(cal))}
+                                  className="px-2 py-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md flex items-center gap-1"
+                                  title="Enviar enlace o WhatsApp al metrólogo / técnico"
+                                >
+                                  <Share2 className="w-3.5 h-3.5" />
+                                  <span>Compartir</span>
+                                </button>
+                              )}
+                              {onOpenDigitalExecution && (
+                                <button
+                                  type="button"
+                                  onClick={() => onOpenDigitalExecution(buildDigitalTargetCAL(cal))}
+                                  className="px-2 py-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md flex items-center gap-1"
+                                  title={isPendiente ? 'Ejecutar y firmar digitalmente' : 'Ver certificado digital'}
+                                >
+                                  <Smartphone className="w-3.5 h-3.5" />
+                                  <span>{isPendiente ? 'Digital' : 'Ver Digital'}</span>
+                                </button>
+                              )}
                               {canPrint && (
                                 <button
                                   type="button"
@@ -2337,7 +2418,27 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
                               Programada: <strong className="text-slate-700">{cal.fecha_programada}</strong> · EMP: {cal.tolerancia_emp}
                             </p>
                           </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-1.5 flex-wrap justify-end shrink-0">
+                            {onShareOrder && (
+                              <button
+                                type="button"
+                                onClick={() => onShareOrder(buildDigitalTargetCAL(cal))}
+                                className="px-2 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded flex items-center gap-1"
+                              >
+                                <Share2 className="w-3 h-3" />
+                                <span>Compartir</span>
+                              </button>
+                            )}
+                            {onOpenDigitalExecution && (
+                              <button
+                                type="button"
+                                onClick={() => onOpenDigitalExecution(buildDigitalTargetCAL(cal))}
+                                className="px-2 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded flex items-center gap-1"
+                              >
+                                <Smartphone className="w-3 h-3" />
+                                <span>Digital</span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => handlePrintCertificate(cal)}
@@ -2845,42 +2946,81 @@ export const CalibracionView: React.FC<CalibracionViewProps> = ({
               )}
 
               <div className="pt-2 flex flex-wrap justify-between items-center gap-2">
-                {isProj ? (
-                  canEmit && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {isProj ? (
+                    canEmit && (
+                      <button
+                        onClick={() => {
+                          const { id_ot: _ignore, estado: _st, fecha_real: _fr, ...payload } = ord;
+                          const folioReal = crearOrdenCalibracion(payload);
+                          const createdOrder: OrdenCalibracion = {
+                            ...payload,
+                            id_ot: folioReal,
+                            estado: 'Pendiente',
+                            fecha_real: ''
+                          };
+                          setSelectedCellInfo(null);
+                          if (canPrint) handlePrintCertificate(createdOrder);
+                        }}
+                        className="px-3.5 py-1.5 font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>{canPrint ? 'Emitir e Imprimir / PDF Orden CAL' : 'Emitir Orden CAL'}</span>
+                      </button>
+                    )
+                  ) : (
+                    canPrint && (
+                      <button
+                        onClick={() => handlePrintCertificate(ord)}
+                        className="px-3.5 py-1.5 font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>
+                          {ord.fecha_real
+                            ? 'Imprimir / PDF Certificado'
+                            : 'Imprimir / PDF Orden CAL'}
+                        </span>
+                      </button>
+                    )
+                  )}
+
+                  {onShareOrder && (
                     <button
+                      type="button"
+                      onClick={() =>
+                        onShareOrder(
+                          buildDigitalTargetCAL(ord, {
+                            isProjectedCal: isProj,
+                            mes_n: selectedCellInfo.mes_n
+                          })
+                        )
+                      }
+                      className="px-3 py-1.5 font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg flex items-center gap-1.5"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Compartir</span>
+                    </button>
+                  )}
+
+                  {onOpenDigitalExecution && (
+                    <button
+                      type="button"
                       onClick={() => {
-                        const { id_ot: _ignore, estado: _st, fecha_real: _fr, ...payload } = ord;
-                        const folioReal = crearOrdenCalibracion(payload);
-                        const createdOrder: OrdenCalibracion = {
-                          ...payload,
-                          id_ot: folioReal,
-                          estado: 'Pendiente',
-                          fecha_real: ''
-                        };
+                        const t = buildDigitalTargetCAL(ord, {
+                          isProjectedCal: isProj,
+                          mes_n: selectedCellInfo.mes_n
+                        });
                         setSelectedCellInfo(null);
-                        if (canPrint) handlePrintCertificate(createdOrder);
+                        onOpenDigitalExecution(t);
                       }}
-                      className="px-3.5 py-1.5 font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
+                      className="px-3 py-1.5 font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg flex items-center gap-1.5"
                     >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>{canPrint ? 'Emitir e Imprimir / PDF Orden CAL' : 'Emitir Orden CAL'}</span>
+                      <Smartphone className="w-3.5 h-3.5" />
+                      <span>{ord.fecha_real ? 'Ver Digital' : 'Ejecutar Digital'}</span>
                     </button>
-                  )
-                ) : (
-                  canPrint && (
-                    <button
-                      onClick={() => handlePrintCertificate(ord)}
-                      className="px-3.5 py-1.5 font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1.5"
-                    >
-                      <Printer className="w-3.5 h-3.5" />
-                      <span>
-                        {ord.fecha_real
-                          ? 'Imprimir / PDF Certificado'
-                          : 'Imprimir / PDF Orden CAL'}
-                      </span>
-                    </button>
-                  )
-                )}
+                  )}
+                </div>
+
                 <button
                   onClick={() => setSelectedCellInfo(null)}
                   className="px-4 py-1.5 font-semibold text-slate-700 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors ml-auto"

@@ -42,6 +42,7 @@ import { hasActionAccess } from '../utils/rbac';
 import { Repuesto, CriticidadRepuesto, MovimientoRepuesto } from '../types';
 import { formatFechaDDMMYYYY } from '../utils/maintenanceEngine';
 import { exportElementToPDF } from '../utils/pdfGenerator';
+import { resolveSheetClientes } from '../utils/logoResolver';
 
 const CATEGORIAS_REPUESTOS = [
   'Rodamientos',
@@ -315,8 +316,21 @@ export const RepuestosView: React.FC = () => {
     }
   };
 
-  // Current Client Object
-  const currentClienteObj = clientes.find(c => c.nombre.trim() === selectedCliente.trim());
+  // Current Client Object(s) resolved even when "Todos" is selected
+  const sheetClientes = useMemo(
+    () =>
+      resolveSheetClientes(
+        clientes,
+        selectedCliente,
+        repuestosFiltrados.map(r => r.cliente)
+      ),
+    [clientes, selectedCliente, repuestosFiltrados]
+  );
+  const currentClienteObj = sheetClientes[0];
+  const plantLabel =
+    selectedCliente.trim().toLowerCase() === 'todos' && sheetClientes.length === 1
+      ? sheetClientes[0].nombre
+      : selectedCliente;
 
   // Paginated chunks for PDF / Print Sheet (14 items per landscape A4 sheet)
   const ITEMS_PER_PRINT_PAGE = 14;
@@ -1482,29 +1496,46 @@ export const RepuestosView: React.FC = () => {
               {/* Sheet Header */}
               <div className="border-b-2 border-slate-900 pb-2.5 flex items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-11 max-w-[140px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0">
+                  <div className="h-12 max-w-[155px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
                     <img
                       src="/assets/aistudio/prodexus_921c729e.jpeg"
                       alt="Prodexus CMMS"
                       className="max-h-full max-w-full object-contain"
                     />
                   </div>
-                  {currentClienteObj?.logo && (
-                    <div className="h-11 max-w-[130px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0">
-                      <img
-                        src={currentClienteObj.logo}
-                        alt={currentClienteObj.nombre}
-                        className="max-h-full max-w-full object-contain"
-                      />
-                    </div>
+                  {sheetClientes.map(cli =>
+                    cli.logo ? (
+                      <div
+                        key={cli.codigo}
+                        className="h-12 max-w-[150px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs"
+                      >
+                        <img
+                          src={cli.logo}
+                          alt={cli.nombre}
+                          className="max-h-full max-w-full object-contain"
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        key={cli.codigo}
+                        className="h-12 max-w-[160px] bg-slate-900 text-white rounded-lg border border-slate-700 px-2.5 flex flex-col justify-center shrink-0 shadow-2xs"
+                      >
+                        <span className="text-[9px] font-black uppercase tracking-tight leading-tight line-clamp-2">
+                          {cli.nombre}
+                        </span>
+                        {cli.rut && (
+                          <span className="text-[7px] font-mono text-slate-300">{cli.rut}</span>
+                        )}
+                      </div>
+                    )
                   )}
                   <div>
                     <h2 className="text-sm font-black uppercase text-slate-900 tracking-tight">
-                      {currentClienteObj?.nombre || 'PRODEXUS ENTERPRISE CMMS'} · INVENTARIO DE REPUESTOS CRÍTICOS
+                      {sheetClientes.length === 1 ? sheetClientes[0].nombre : 'PRODEXUS ENTERPRISE CMMS'} · INVENTARIO DE REPUESTOS CRÍTICOS
                     </h2>
                     <p className="text-[10px] text-slate-600 font-medium">
-                      Planta: <strong>{selectedCliente.toUpperCase()}</strong>
-                      {currentClienteObj?.rut ? ` · RUT: ${currentClienteObj.rut}` : ''} · Fecha de Emisión: {formatFechaDDMMYYYY(new Date())} · Auditoría ISO 55001
+                      Planta: <strong>{plantLabel.toUpperCase()}</strong>
+                      {currentClienteObj?.rut && sheetClientes.length === 1 ? ` · RUT: ${currentClienteObj.rut}` : ''} · Fecha de Emisión: {formatFechaDDMMYYYY(new Date())} · Auditoría ISO 55001
                     </p>
                   </div>
                 </div>
@@ -1708,29 +1739,46 @@ export const RepuestosView: React.FC = () => {
                 <div className="space-y-3">
                   <div className="border-b-2 border-slate-900 pb-2.5 flex items-start justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="h-11 max-w-[140px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0">
+                      <div className="h-12 max-w-[155px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
                         <img
                           src="/assets/aistudio/prodexus_921c729e.jpeg"
                           alt="Prodexus CMMS"
                           className="max-h-full max-w-full object-contain"
                         />
                       </div>
-                      {currentClienteObj?.logo && (
-                        <div className="h-11 max-w-[130px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0">
-                          <img
-                            src={currentClienteObj.logo}
-                            alt={currentClienteObj.nombre}
-                            className="max-h-full max-w-full object-contain"
-                          />
-                        </div>
+                      {sheetClientes.map(cli =>
+                        cli.logo ? (
+                          <div
+                            key={cli.codigo}
+                            className="h-12 max-w-[150px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs"
+                          >
+                            <img
+                              src={cli.logo}
+                              alt={cli.nombre}
+                              className="max-h-full max-w-full object-contain"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            key={cli.codigo}
+                            className="h-12 max-w-[160px] bg-slate-900 text-white rounded-lg border border-slate-700 px-2.5 flex flex-col justify-center shrink-0 shadow-2xs"
+                          >
+                            <span className="text-[9px] font-black uppercase tracking-tight leading-tight line-clamp-2">
+                              {cli.nombre}
+                            </span>
+                            {cli.rut && (
+                              <span className="text-[7px] font-mono text-slate-300">{cli.rut}</span>
+                            )}
+                          </div>
+                        )
                       )}
                       <div>
                         <h2 className="text-sm font-black uppercase text-slate-900 tracking-tight">
-                          {currentClienteObj?.nombre || 'PRODEXUS ENTERPRISE CMMS'} · INVENTARIO DE REPUESTOS CRÍTICOS
+                          {sheetClientes.length === 1 ? sheetClientes[0].nombre : 'PRODEXUS ENTERPRISE CMMS'} · INVENTARIO DE REPUESTOS CRÍTICOS
                         </h2>
                         <p className="text-[10px] text-slate-600 font-medium">
-                          Planta: <strong>{selectedCliente.toUpperCase()}</strong>
-                          {currentClienteObj?.rut ? ` · RUT: ${currentClienteObj.rut}` : ''} · Emisión: {formatFechaDDMMYYYY(new Date())} · Auditoría ISO 55001
+                          Planta: <strong>{plantLabel.toUpperCase()}</strong>
+                          {currentClienteObj?.rut && sheetClientes.length === 1 ? ` · RUT: ${currentClienteObj.rut}` : ''} · Emisión: {formatFechaDDMMYYYY(new Date())} · Auditoría ISO 55001
                         </p>
                       </div>
                     </div>

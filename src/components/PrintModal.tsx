@@ -22,6 +22,18 @@ export interface PrintableDocument {
   trabajo?: string;
   tecnico?: string;
   calibracion?: OrdenCalibracion;
+  isCerrada?: boolean;
+  fechaReal?: string;
+  duracionHoras?: number;
+  accionesRealizadas?: string;
+  repuestos?: string;
+  tareasCompletadas?: string[];
+  firmaTecnico?: string;
+  firmaSupervisor?: string;
+  firmadoPor?: string;
+  firmadoSupervisorPor?: string;
+  fechaFirmaDigital?: string;
+  ejecucionDigital?: boolean;
 }
 
 interface PrintModalProps {
@@ -114,8 +126,17 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
           const isCalPendiente = isCalibracion && (!doc.calibracion?.fecha_real || doc.calibracion?.estado === 'Pendiente');
           const folioYearMatch = doc.folio.match(/-(20\d{2})-/);
           const docYear = folioYearMatch ? folioYearMatch[1] : String(selectedAnio || new Date().getFullYear());
+          const effFirmaTecnico = doc.firmaTecnico || doc.calibracion?.firma_tecnico;
+          const effFirmaSupervisor = doc.firmaSupervisor || doc.calibracion?.firma_supervisor;
+          const effFirmadoPor = doc.firmadoPor || doc.calibracion?.firmado_por || doc.tecnico || doc.calibracion?.metrologo_laboratorio;
+          const effFirmadoSupervisorPor = doc.firmadoSupervisorPor || doc.calibracion?.firmado_supervisor_por;
+          const effFechaReal = doc.fechaReal || doc.calibracion?.fecha_real;
+          const effFechaFirma = doc.fechaFirmaDigital || doc.calibracion?.fecha_firma_digital;
 
-          const clienteObj = clientes.find(c => c.nombre.trim() === doc.equipo.cliente.trim());
+          const clienteObj =
+            clientes.find(
+              c => c.nombre.trim().toLowerCase() === doc.equipo.cliente.trim().toLowerCase()
+            ) || (clientes.length === 1 ? clientes[0] : undefined);
 
           return (
             <div
@@ -133,7 +154,7 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
                       className="max-h-full max-w-full object-contain"
                     />
                   </div>
-                  {clienteObj?.logo && (
+                  {clienteObj?.logo ? (
                     <div className="h-12 sm:h-14 max-w-[140px] bg-white rounded-lg border border-slate-300 p-1 flex items-center justify-center shrink-0 shadow-2xs">
                       <img
                         src={clienteObj.logo}
@@ -141,7 +162,16 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
                         className="max-h-full max-w-full object-contain"
                       />
                     </div>
-                  )}
+                  ) : (clienteObj?.nombre || doc.equipo.cliente) ? (
+                    <div className="h-12 sm:h-14 max-w-[165px] bg-slate-900 text-white rounded-lg border border-slate-700 px-3 flex flex-col justify-center shrink-0 shadow-2xs">
+                      <span className="text-[10px] font-black uppercase tracking-tight leading-tight line-clamp-2">
+                        {clienteObj?.nombre || doc.equipo.cliente}
+                      </span>
+                      {clienteObj?.rut && (
+                        <span className="text-[8px] font-mono text-slate-300">{clienteObj.rut}</span>
+                      )}
+                    </div>
+                  ) : null}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-900 uppercase leading-tight">
@@ -275,13 +305,52 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
                     Protocolo de Tareas & Verificaciones Técnicas
                   </h3>
                   <div className="space-y-2.5 text-xs text-slate-800">
-                    {(doc.protocolo || doc.equipo.tareas.split('\n').filter(t => t.trim().length > 0)).map((task, tIdx) => (
-                      <div key={tIdx} className="flex items-start gap-3 py-1 border-b border-slate-100">
-                        <div className="w-5 h-5 border-2 border-slate-400 rounded-sm shrink-0 mt-0.5" />
-                        <span className="leading-snug">{task}</span>
-                      </div>
-                    ))}
+                    {(doc.protocolo || doc.equipo.tareas.split('\n').filter(t => t.trim().length > 0)).map((task, tIdx) => {
+                      const hasRecordedChecklist = Boolean(doc.isCerrada && doc.tareasCompletadas);
+                      const isDone = hasRecordedChecklist
+                        ? doc.tareasCompletadas!.includes(task)
+                        : Boolean(doc.isCerrada);
+                      return (
+                        <div key={tIdx} className="flex items-start gap-3 py-1 border-b border-slate-100">
+                          {doc.isCerrada ? (
+                            <div
+                              className={`w-5 h-5 border-2 rounded-sm shrink-0 mt-0.5 flex items-center justify-center text-[11px] font-black ${
+                                isDone
+                                  ? 'border-emerald-600 bg-emerald-50 text-emerald-700'
+                                  : 'border-slate-300 text-slate-300'
+                              }`}
+                            >
+                              {isDone ? '✓' : ''}
+                            </div>
+                          ) : (
+                            <div className="w-5 h-5 border-2 border-slate-400 rounded-sm shrink-0 mt-0.5" />
+                          )}
+                          <span className="leading-snug">{task}</span>
+                        </div>
+                      );
+                    })}
                   </div>
+
+                  {doc.isCerrada && (
+                    <div className="p-3 bg-emerald-50/50 border border-emerald-200 rounded-lg text-xs space-y-1.5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 font-bold text-emerald-900">
+                        <span>Registro de Ejecución en Terreno</span>
+                        {doc.duracionHoras ? (
+                          <span className="font-mono text-[11px]">Duración: {doc.duracionHoras} h</span>
+                        ) : null}
+                      </div>
+                      {doc.accionesRealizadas && (
+                        <p className="text-slate-800 leading-relaxed">
+                          <strong>Hallazgos / Observaciones:</strong> {doc.accionesRealizadas}
+                        </p>
+                      )}
+                      {doc.repuestos && (
+                        <p className="text-slate-700 text-[11px]">
+                          <strong>Repuestos Utilizados:</strong> {doc.repuestos}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -432,9 +501,20 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
                     <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 mb-2">
                       Diagnóstico, Acciones Realizadas & Repuestos
                     </h3>
-                    <div className="h-32 border border-slate-300 rounded p-2 text-slate-400 text-xs italic">
-                      [Espacio para anotaciones del técnico en terreno]
-                    </div>
+                    {doc.isCerrada && doc.accionesRealizadas ? (
+                      <div className="p-3 bg-emerald-50/40 border border-emerald-200 rounded text-xs text-slate-800 space-y-2">
+                        <p className="leading-relaxed whitespace-pre-line">{doc.accionesRealizadas}</p>
+                        {doc.repuestos && (
+                          <p className="text-[11px] text-slate-700 pt-1.5 border-t border-emerald-200/70">
+                            <strong>Repuestos / Insumos Utilizados:</strong> {doc.repuestos}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="h-32 border border-slate-300 rounded p-2 text-slate-400 text-xs italic">
+                        [Espacio para anotaciones del técnico en terreno]
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -452,11 +532,24 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
 
                   <div>
                     <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 border-b border-slate-300 pb-1 mb-2">
-                      Registro de Materiales Utilizados & Horas Hombre
+                      {doc.isCerrada && doc.accionesRealizadas
+                        ? 'Trabajos Ejecutados, Materiales Utilizados & Entrega'
+                        : 'Registro de Materiales Utilizados & Horas Hombre'}
                     </h3>
-                    <div className="h-32 border border-slate-300 rounded p-2 text-slate-400 text-xs italic">
-                      [Espacio para registro de materiales e insumos de montaje]
-                    </div>
+                    {doc.isCerrada && doc.accionesRealizadas ? (
+                      <div className="p-3 bg-emerald-50/40 border border-emerald-200 rounded text-xs text-slate-800 space-y-2">
+                        <p className="leading-relaxed whitespace-pre-line">{doc.accionesRealizadas}</p>
+                        {doc.repuestos && (
+                          <p className="text-[11px] text-slate-700 pt-1.5 border-t border-emerald-200/70">
+                            <strong>Materiales / Insumos Empleados:</strong> {doc.repuestos}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="h-32 border border-slate-300 rounded p-2 text-slate-400 text-xs italic">
+                        [Espacio para registro de materiales e insumos de montaje]
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -468,31 +561,54 @@ export const PrintModal: React.FC<PrintModalProps> = ({ documents, onClose }) =>
                 <div className="pt-5 border-t-2 border-slate-300 text-xs">
                   <div className="grid grid-cols-3 gap-6 text-center">
                     <div>
-                      <div className="border-b border-slate-400 h-10 flex items-end justify-center pb-1 mb-1 font-mono text-[11px] text-slate-400">
-                        Firma / Timbre
+                      <div className="border-b border-slate-400 h-14 flex items-end justify-center pb-1 mb-1 font-mono text-[11px] text-slate-400">
+                        {effFirmaTecnico ? (
+                          <img
+                            src={effFirmaTecnico}
+                            alt="Firma Ejecutor"
+                            className="max-h-12 w-auto object-contain mx-auto"
+                          />
+                        ) : (
+                          'Firma / Timbre'
+                        )}
                       </div>
                       <p className="font-bold text-slate-900">
                         {isCalibracion ? 'Metrólogo Ejecutor' : 'Técnico Ejecutor'}
                       </p>
-                      <p className="text-[10px] text-slate-500">
-                        {isCalibracion
+                      <p className="text-[10px] text-slate-600">
+                        {effFirmaTecnico
+                          ? `${effFirmadoPor || ''}${effFechaReal ? ` · ${effFechaReal}` : ''}`
+                          : isCalibracion
                           ? (isCalPendiente ? `Fecha Real: ____ / ____ / ${docYear}` : doc.calibracion?.metrologo_laboratorio)
-                          : `Fecha Real: ____ / ____ / ${docYear}`}
+                          : (effFechaReal ? `Fecha Real: ${effFechaReal}` : `Fecha Real: ____ / ____ / ${docYear}`)}
                       </p>
+                      {effFirmaTecnico && effFechaFirma && (
+                        <p className="text-[9px] text-slate-400 font-mono">Firma Digital · {effFechaFirma}</p>
+                      )}
                     </div>
 
                     <div>
-                      <div className="border-b border-slate-400 h-10 flex items-end justify-center pb-1 mb-1 font-mono text-[11px] text-slate-400">
-                        Firma / Timbre
+                      <div className="border-b border-slate-400 h-14 flex items-end justify-center pb-1 mb-1 font-mono text-[11px] text-slate-400">
+                        {effFirmaSupervisor ? (
+                          <img
+                            src={effFirmaSupervisor}
+                            alt="Firma Supervisor"
+                            className="max-h-12 w-auto object-contain mx-auto"
+                          />
+                        ) : (
+                          'Firma / Timbre'
+                        )}
                       </div>
                       <p className="font-bold text-slate-900">
                         {isCalibracion ? 'Aseguramiento de Calidad' : 'Supervisor de Mantenimiento'}
                       </p>
-                      <p className="text-[10px] text-slate-500">Conformidad Técnica</p>
+                      <p className="text-[10px] text-slate-500">
+                        {effFirmaSupervisor && effFirmadoSupervisorPor ? effFirmadoSupervisorPor : 'Conformidad Técnica'}
+                      </p>
                     </div>
 
                     <div>
-                      <div className="border-b border-slate-400 h-10 flex items-end justify-center pb-1 mb-1 font-mono text-[11px] text-slate-400">
+                      <div className="border-b border-slate-400 h-14 flex items-end justify-center pb-1 mb-1 font-mono text-[11px] text-slate-400">
                         Firma / Timbre
                       </div>
                       <p className="font-bold text-slate-900">

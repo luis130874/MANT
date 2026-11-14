@@ -15,7 +15,9 @@ import {
   CheckSquare,
   Wrench,
   AlertCircle,
-  Download
+  Download,
+  Share2,
+  Smartphone
 } from 'lucide-react';
 import { useMaintenance } from '../context/MaintenanceContext';
 import { useAuth } from '../context/AuthContext';
@@ -30,29 +32,21 @@ import {
 } from '../utils/maintenanceEngine';
 import { Equipo } from '../types';
 import { RepuestosConsumoSelector, SelectedRepuestoConsumo } from './RepuestosConsumoSelector';
+import { PrintableDocument } from './PrintModal';
+import { DigitalOrderTarget } from '../utils/digitalOrderLink';
 
 interface PreventivosViewProps {
-  onPrintOrder?: (order: {
-    tipo: 'MP';
-    folio: string;
-    equipo: Equipo;
-    fechaProgramada: string;
-    protocolo: string[];
-    tecnico: string;
-  }) => void;
-  onPrintBatch?: (orders: Array<{
-    tipo: 'MP';
-    folio: string;
-    equipo: Equipo;
-    fechaProgramada: string;
-    protocolo: string[];
-    tecnico: string;
-  }>) => void;
+  onPrintOrder?: (order: PrintableDocument) => void;
+  onPrintBatch?: (orders: PrintableDocument[]) => void;
+  onShareOrder?: (target: DigitalOrderTarget) => void;
+  onOpenDigitalExecution?: (target: DigitalOrderTarget) => void;
 }
 
 export const PreventivosView: React.FC<PreventivosViewProps> = ({
   onPrintOrder,
-  onPrintBatch
+  onPrintBatch,
+  onShareOrder,
+  onOpenDigitalExecution
 }) => {
   const {
     selectedCliente,
@@ -197,6 +191,9 @@ export const PreventivosView: React.FC<PreventivosViewProps> = ({
 
     const repuestosFinal = [...deductedLabels, cierreRepuestos.trim()].filter(Boolean).join(' | ');
 
+    const tasksList = selectedPendingItem.equipo.tareas.split('\n').filter(t => t.trim().length > 0);
+    const completedTasks = tasksList.filter((_, idx) => Boolean(checkedTasks[idx]));
+
     registrarCierrePreventivo({
       codigo_eq: selectedPendingItem.equipo.codigo_eq,
       mes_n: selectedPendingItem.mes_n,
@@ -206,6 +203,7 @@ export const PreventivosView: React.FC<PreventivosViewProps> = ({
       tecnico: cierreTecnico,
       duracion_horas: cierreHoras,
       repuestos_utilizados: repuestosFinal,
+      tareas_completadas: completedTasks.length > 0 ? completedTasks : undefined,
       frecuencia: selectedPendingItem.equipo.frecuencia
     });
 
@@ -217,29 +215,53 @@ export const PreventivosView: React.FC<PreventivosViewProps> = ({
     setCheckedTasks({});
   };
 
-  const handlePrintAllMonth = () => {
-    if (!onPrintBatch || ocurrenciasMes.length === 0) return;
-    const batch = ocurrenciasMes.map(item => ({
-      tipo: 'MP' as const,
-      folio: item.folio,
-      equipo: item.equipo,
-      fechaProgramada: item.fechaStr,
-      protocolo: item.equipo.tareas.split('\n').filter(t => t.trim().length > 0),
-      tecnico: item.equipo.tecnico || 'Técnico Asignado'
-    }));
-    onPrintBatch(batch);
-  };
-
-  const handlePrintSingle = (item: typeof ocurrenciasMes[0]) => {
-    if (!onPrintOrder) return;
-    onPrintOrder({
+  const buildPrintableMP = (item: typeof ocurrenciasMes[0]): PrintableDocument => {
+    const reg = item.historialReg;
+    return {
       tipo: 'MP',
       folio: item.folio,
       equipo: item.equipo,
       fechaProgramada: item.fechaStr,
       protocolo: item.equipo.tareas.split('\n').filter(t => t.trim().length > 0),
-      tecnico: item.equipo.tecnico || 'Técnico Asignado'
-    });
+      tecnico: reg?.tecnico || item.equipo.tecnico || 'Técnico Asignado',
+      isCerrada: item.isCerrada,
+      fechaReal: reg?.fecha_real,
+      duracionHoras: reg?.duracion_horas,
+      accionesRealizadas: reg?.comentarios,
+      repuestos: reg?.repuestos_utilizados,
+      tareasCompletadas: reg?.tareas_completadas,
+      firmaTecnico: reg?.firma_tecnico,
+      firmaSupervisor: reg?.firma_supervisor,
+      firmadoPor: reg?.firmado_por,
+      firmadoSupervisorPor: reg?.firmado_supervisor_por,
+      fechaFirmaDigital: reg?.fecha_firma_digital,
+      ejecucionDigital: reg?.ejecucion_digital
+    };
+  };
+
+  const buildDigitalTargetMP = (item: typeof ocurrenciasMes[0]): DigitalOrderTarget => ({
+    tipo: 'MP',
+    folio: item.folio,
+    cliente: item.equipo.cliente,
+    codigoEq: item.equipo.codigo_eq,
+    nombreActivo: item.equipo.nombre,
+    fechaProgramada: item.fechaStr,
+    mes_n: selectedMes,
+    anio: selectedAnio,
+    frecuencia: item.equipo.frecuencia,
+    tecnicoSugerido: item.equipo.tecnico,
+    equipo: item.equipo,
+    historialMP: item.historialReg
+  });
+
+  const handlePrintAllMonth = () => {
+    if (!onPrintBatch || ocurrenciasMes.length === 0) return;
+    onPrintBatch(ocurrenciasMes.map(buildPrintableMP));
+  };
+
+  const handlePrintSingle = (item: typeof ocurrenciasMes[0]) => {
+    if (!onPrintOrder) return;
+    onPrintOrder(buildPrintableMP(item));
   };
 
   return (
@@ -378,16 +400,41 @@ export const PreventivosView: React.FC<PreventivosViewProps> = ({
                         </p>
                       </div>
 
-                      {canPrint && (
-                        <button
-                          onClick={() => handlePrintSingle(item)}
-                          className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md flex items-center gap-1 transition-colors"
-                          title="Imprimir protocolo"
-                        >
-                          <Printer className="w-3.5 h-3.5 text-slate-500" />
-                          <span>Imprimir</span>
-                        </button>
-                      )}
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end shrink-0">
+                        {onShareOrder && (
+                          <button
+                            type="button"
+                            onClick={() => onShareOrder(buildDigitalTargetMP(item))}
+                            className="px-2.5 py-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md flex items-center gap-1 transition-colors"
+                            title="Enviar enlace o WhatsApp al técnico"
+                          >
+                            <Share2 className="w-3.5 h-3.5" />
+                            <span>Compartir</span>
+                          </button>
+                        )}
+                        {onOpenDigitalExecution && (
+                          <button
+                            type="button"
+                            onClick={() => onOpenDigitalExecution(buildDigitalTargetMP(item))}
+                            className="px-2.5 py-1.5 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md flex items-center gap-1 transition-colors"
+                            title={item.isCerrada ? 'Ver orden completada / firmas' : 'Completar y firmar digitalmente'}
+                          >
+                            <Smartphone className="w-3.5 h-3.5" />
+                            <span>{item.isCerrada ? 'Ver Digital' : 'Completar Digital'}</span>
+                          </button>
+                        )}
+                        {canPrint && (
+                          <button
+                            type="button"
+                            onClick={() => handlePrintSingle(item)}
+                            className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md flex items-center gap-1 transition-colors"
+                            title="Imprimir protocolo en papel / PDF"
+                          >
+                            <Printer className="w-3.5 h-3.5 text-slate-500" />
+                            <span>Imprimir</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Protocol Steps Box */}
@@ -617,6 +664,7 @@ export const PreventivosView: React.FC<PreventivosViewProps> = ({
                   <th className="py-2.5 px-3">Técnico Ejecutor</th>
                   <th className="py-2.5 px-3">Comentarios / Hallazgos</th>
                   <th className="py-2.5 px-3">Repuestos</th>
+                  <th className="py-2.5 px-3 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -633,10 +681,38 @@ export const PreventivosView: React.FC<PreventivosViewProps> = ({
                   })
                   .map(row => {
                     const eqObj = equipos.find(e => e.codigo_eq === row.codigo_eq);
+                    const printHistoryDoc: PrintableDocument | null = eqObj
+                      ? {
+                          tipo: 'MP',
+                          folio: row.id_ot,
+                          equipo: eqObj,
+                          fechaProgramada: row.fecha_real,
+                          protocolo: eqObj.tareas.split('\n').filter(t => t.trim().length > 0),
+                          tecnico: row.tecnico,
+                          isCerrada: true,
+                          fechaReal: row.fecha_real,
+                          duracionHoras: row.duracion_horas,
+                          accionesRealizadas: row.comentarios,
+                          repuestos: row.repuestos_utilizados,
+                          tareasCompletadas: row.tareas_completadas,
+                          firmaTecnico: row.firma_tecnico,
+                          firmaSupervisor: row.firma_supervisor,
+                          firmadoPor: row.firmado_por,
+                          firmadoSupervisorPor: row.firmado_supervisor_por,
+                          fechaFirmaDigital: row.fecha_firma_digital,
+                          ejecucionDigital: row.ejecucion_digital
+                        }
+                      : null;
+
                     return (
                       <tr key={row.id || row.id_ot} className="hover:bg-slate-50/80 transition-colors">
                         <td className="py-2.5 px-3 font-mono font-bold text-blue-600">
                           {row.id_ot}
+                          {row.firma_tecnico && (
+                            <span className="block text-[9.5px] font-sans font-semibold text-emerald-700">
+                              Firmada Digital
+                            </span>
+                          )}
                         </td>
                         <td className="py-2.5 px-3 font-semibold text-slate-900">
                           {eqObj?.nombre || row.codigo_eq}
@@ -656,6 +732,19 @@ export const PreventivosView: React.FC<PreventivosViewProps> = ({
                         </td>
                         <td className="py-2.5 px-3 text-slate-500 text-[11px]">
                           {row.repuestos_utilizados || '-'}
+                        </td>
+                        <td className="py-2.5 px-3 text-right">
+                          {canPrint && printHistoryDoc && onPrintOrder && (
+                            <button
+                              type="button"
+                              onClick={() => onPrintOrder(printHistoryDoc)}
+                              className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded inline-flex items-center gap-1"
+                              title="Imprimir / PDF Orden Cerrada"
+                            >
+                              <Printer className="w-3.5 h-3.5" />
+                              <span>PDF</span>
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );

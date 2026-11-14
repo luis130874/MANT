@@ -12,7 +12,9 @@ import {
   Search,
   Download,
   Trash2,
-  Hammer
+  Hammer,
+  Share2,
+  Smartphone
 } from 'lucide-react';
 import { useMaintenance } from '../context/MaintenanceContext';
 import { useAuth } from '../context/AuthContext';
@@ -20,21 +22,20 @@ import { hasActionAccess } from '../utils/rbac';
 import { formatFechaDDMMYYYY, parseFecha } from '../utils/maintenanceEngine';
 import { OrdenTrabajoOT, Equipo } from '../types';
 import { RepuestosConsumoSelector, SelectedRepuestoConsumo } from './RepuestosConsumoSelector';
+import { PrintableDocument } from './PrintModal';
+import { DigitalOrderTarget } from '../utils/digitalOrderLink';
 
 interface OrdenesTrabajoViewProps {
-  onPrintOrder?: (order: {
-    tipo: 'OT';
-    folio: string;
-    equipo: Equipo;
-    fechaEmision: string;
-    fechaTentativa: string;
-    diasTolerancia: number;
-    trabajo: string;
-    tecnico: string;
-  }) => void;
+  onPrintOrder?: (order: PrintableDocument) => void;
+  onShareOrder?: (target: DigitalOrderTarget) => void;
+  onOpenDigitalExecution?: (target: DigitalOrderTarget) => void;
 }
 
-export const OrdenesTrabajoView: React.FC<OrdenesTrabajoViewProps> = ({ onPrintOrder }) => {
+export const OrdenesTrabajoView: React.FC<OrdenesTrabajoViewProps> = ({
+  onPrintOrder,
+  onShareOrder,
+  onOpenDigitalExecution
+}) => {
   const {
     selectedCliente,
     equipos,
@@ -153,20 +154,38 @@ export const OrdenesTrabajoView: React.FC<OrdenesTrabajoViewProps> = ({ onPrintO
     setActiveSubTab('historial');
   };
 
+  const buildDigitalTargetOT = (o: OrdenTrabajoOT): DigitalOrderTarget => {
+    const eq = equipos.find(e => e.codigo_eq === o.codigo_eq && e.cliente.trim() === o.cliente.trim())
+      || equipos.find(e => e.codigo_eq === o.codigo_eq);
+    return {
+      tipo: 'OT',
+      folio: o.id_ot,
+      cliente: o.cliente,
+      codigoEq: o.codigo_eq,
+      nombreActivo: eq?.nombre || 'Instalaciones Generales de Planta',
+      fechaProgramada: o.fecha_tentativa,
+      tecnicoSugerido: o.tecnico,
+      equipo: eq,
+      ordenTrabajo: o
+    };
+  };
+
   const handlePrint = (o: OrdenTrabajoOT) => {
     if (!onPrintOrder) return;
-    const eq = equipos.find(e => e.codigo_eq === o.codigo_eq) || {
-      codigo_eq: o.codigo_eq,
-      cliente: o.cliente,
-      nombre: 'Instalaciones Generales de Planta',
-      sistema: 'General',
-      marca: 'N/A',
-      modelo: 'N/A',
-      frecuencia: 'N/A',
-      tareas: '',
-      tecnico: o.tecnico,
-      fecha_proxima: ''
-    };
+    const eq = equipos.find(e => e.codigo_eq === o.codigo_eq && e.cliente.trim() === o.cliente.trim())
+      || equipos.find(e => e.codigo_eq === o.codigo_eq)
+      || {
+        codigo_eq: o.codigo_eq,
+        cliente: o.cliente,
+        nombre: 'Instalaciones Generales de Planta',
+        sistema: 'General',
+        marca: 'N/A',
+        modelo: 'N/A',
+        frecuencia: 'N/A',
+        tareas: '',
+        tecnico: o.tecnico,
+        fecha_proxima: ''
+      };
     onPrintOrder({
       tipo: 'OT',
       folio: o.id_ot,
@@ -175,7 +194,17 @@ export const OrdenesTrabajoView: React.FC<OrdenesTrabajoViewProps> = ({ onPrintO
       fechaTentativa: o.fecha_tentativa,
       diasTolerancia: o.dias_tolerancia,
       trabajo: o.trabajo_solicitado,
-      tecnico: o.tecnico
+      tecnico: o.tecnico,
+      isCerrada: o.estado !== 'Pendiente',
+      fechaReal: o.fecha_real,
+      accionesRealizadas: o.acciones_realizadas,
+      repuestos: o.materiales_utilizados,
+      firmaTecnico: o.firma_tecnico,
+      firmaSupervisor: o.firma_supervisor,
+      firmadoPor: o.firmado_por,
+      firmadoSupervisorPor: o.firmado_supervisor_por,
+      fechaFirmaDigital: o.fecha_firma_digital,
+      ejecucionDigital: o.ejecucion_digital
     });
   };
 
@@ -396,12 +425,35 @@ export const OrdenesTrabajoView: React.FC<OrdenesTrabajoViewProps> = ({ onPrintO
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          {onShareOrder && (
+                            <button
+                              type="button"
+                              onClick={() => onShareOrder(buildDigitalTargetOT(o))}
+                              className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md flex items-center gap-1"
+                              title="Enviar enlace o WhatsApp al técnico"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                              <span>Compartir</span>
+                            </button>
+                          )}
+                          {onOpenDigitalExecution && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenDigitalExecution(buildDigitalTargetOT(o))}
+                              className="px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md flex items-center gap-1"
+                              title="Completar y firmar digitalmente"
+                            >
+                              <Smartphone className="w-3.5 h-3.5" />
+                              <span>Completar Digital</span>
+                            </button>
+                          )}
                           {canPrint && (
                             <button
+                              type="button"
                               onClick={() => handlePrint(o)}
                               className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md flex items-center gap-1"
-                              title="Imprimir Orden"
+                              title="Imprimir Orden en papel / PDF"
                             >
                               <Printer className="w-3.5 h-3.5" />
                               <span>Imprimir</span>
@@ -601,6 +653,7 @@ export const OrdenesTrabajoView: React.FC<OrdenesTrabajoViewProps> = ({ onPrintO
                   <th className="py-2.5 px-3 text-center">Estado</th>
                   <th className="py-2.5 px-3">Responsable</th>
                   <th className="py-2.5 px-3">Materiales</th>
+                  <th className="py-2.5 px-3 text-right">PDF</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -616,6 +669,11 @@ export const OrdenesTrabajoView: React.FC<OrdenesTrabajoViewProps> = ({ onPrintO
                     <tr key={row.id_ot} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-2.5 px-3 font-mono font-bold text-blue-700">
                         {row.id_ot}
+                        {row.firma_tecnico && (
+                          <span className="block text-[9.5px] font-sans font-semibold text-emerald-700">
+                            Firmada Digital
+                          </span>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 font-semibold text-slate-900">
                         {row.codigo_eq}
@@ -643,6 +701,19 @@ export const OrdenesTrabajoView: React.FC<OrdenesTrabajoViewProps> = ({ onPrintO
                       </td>
                       <td className="py-2.5 px-3 text-slate-500 max-w-xs truncate" title={row.materiales_utilizados}>
                         {row.materiales_utilizados || '-'}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        {canPrint && onPrintOrder && (
+                          <button
+                            type="button"
+                            onClick={() => handlePrint(row)}
+                            className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded inline-flex items-center gap-1"
+                            title="Imprimir / PDF Orden Cerrada"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>PDF</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

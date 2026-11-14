@@ -14,7 +14,9 @@ import {
   Download,
   Trash2,
   CheckSquare,
-  Wrench
+  Wrench,
+  Share2,
+  Smartphone
 } from 'lucide-react';
 import { useMaintenance } from '../context/MaintenanceContext';
 import { useAuth } from '../context/AuthContext';
@@ -22,21 +24,20 @@ import { hasActionAccess } from '../utils/rbac';
 import { formatFechaDDMMYYYY, parseFecha } from '../utils/maintenanceEngine';
 import { OrdenCorrectivo, Equipo } from '../types';
 import { RepuestosConsumoSelector, SelectedRepuestoConsumo } from './RepuestosConsumoSelector';
+import { PrintableDocument } from './PrintModal';
+import { DigitalOrderTarget } from '../utils/digitalOrderLink';
 
 interface CorrectivosViewProps {
-  onPrintOrder?: (order: {
-    tipo: 'MC';
-    folio: string;
-    equipo: Equipo;
-    fechaEmision: string;
-    fechaTentativa: string;
-    diasTolerancia: number;
-    falla: string;
-    tecnico: string;
-  }) => void;
+  onPrintOrder?: (order: PrintableDocument) => void;
+  onShareOrder?: (target: DigitalOrderTarget) => void;
+  onOpenDigitalExecution?: (target: DigitalOrderTarget) => void;
 }
 
-export const CorrectivosView: React.FC<CorrectivosViewProps> = ({ onPrintOrder }) => {
+export const CorrectivosView: React.FC<CorrectivosViewProps> = ({
+  onPrintOrder,
+  onShareOrder,
+  onOpenDigitalExecution
+}) => {
   const {
     selectedCliente,
     equipos,
@@ -159,10 +160,38 @@ export const CorrectivosView: React.FC<CorrectivosViewProps> = ({ onPrintOrder }
     setActiveSubTab('historial');
   };
 
+  const buildDigitalTargetMC = (c: OrdenCorrectivo): DigitalOrderTarget => {
+    const eq = equipos.find(e => e.codigo_eq === c.codigo_eq && e.cliente.trim() === c.cliente.trim())
+      || equipos.find(e => e.codigo_eq === c.codigo_eq);
+    return {
+      tipo: 'MC',
+      folio: c.id_ot,
+      cliente: c.cliente,
+      codigoEq: c.codigo_eq,
+      nombreActivo: eq?.nombre || c.codigo_eq,
+      fechaProgramada: c.fecha_tentativa,
+      tecnicoSugerido: c.tecnico,
+      equipo: eq,
+      correctivo: c
+    };
+  };
+
   const handlePrint = (c: OrdenCorrectivo) => {
     if (!onPrintOrder) return;
-    const eq = equipos.find(e => e.codigo_eq === c.codigo_eq);
-    if (!eq) return;
+    const eq = equipos.find(e => e.codigo_eq === c.codigo_eq && e.cliente.trim() === c.cliente.trim())
+      || equipos.find(e => e.codigo_eq === c.codigo_eq)
+      || {
+        codigo_eq: c.codigo_eq,
+        cliente: c.cliente,
+        nombre: c.codigo_eq,
+        sistema: 'General',
+        marca: 'N/A',
+        modelo: 'N/A',
+        frecuencia: 'Correctivo',
+        tareas: '',
+        tecnico: c.tecnico,
+        fecha_proxima: ''
+      };
     onPrintOrder({
       tipo: 'MC',
       folio: c.id_ot,
@@ -171,7 +200,17 @@ export const CorrectivosView: React.FC<CorrectivosViewProps> = ({ onPrintOrder }
       fechaTentativa: c.fecha_tentativa,
       diasTolerancia: c.dias_tolerancia,
       falla: c.falla_reportada,
-      tecnico: c.tecnico
+      tecnico: c.tecnico,
+      isCerrada: c.estado !== 'Pendiente',
+      fechaReal: c.fecha_real,
+      accionesRealizadas: c.acciones_realizadas,
+      repuestos: c.repuestos_utilizados,
+      firmaTecnico: c.firma_tecnico,
+      firmaSupervisor: c.firma_supervisor,
+      firmadoPor: c.firmado_por,
+      firmadoSupervisorPor: c.firmado_supervisor_por,
+      fechaFirmaDigital: c.fecha_firma_digital,
+      ejecucionDigital: c.ejecucion_digital
     });
   };
 
@@ -395,12 +434,35 @@ export const CorrectivosView: React.FC<CorrectivosViewProps> = ({ onPrintOrder }
                           </p>
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                          {onShareOrder && (
+                            <button
+                              type="button"
+                              onClick={() => onShareOrder(buildDigitalTargetMC(c))}
+                              className="px-2.5 py-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-md flex items-center gap-1"
+                              title="Enviar enlace o WhatsApp al técnico"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                              <span>Compartir</span>
+                            </button>
+                          )}
+                          {onOpenDigitalExecution && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenDigitalExecution(buildDigitalTargetMC(c))}
+                              className="px-2.5 py-1 text-[11px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md flex items-center gap-1"
+                              title="Completar y firmar digitalmente"
+                            >
+                              <Smartphone className="w-3.5 h-3.5" />
+                              <span>Completar Digital</span>
+                            </button>
+                          )}
                           {canPrint && (
                             <button
+                              type="button"
                               onClick={() => handlePrint(c)}
                               className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-md flex items-center gap-1"
-                              title="Imprimir Orden"
+                              title="Imprimir Orden en papel / PDF"
                             >
                               <Printer className="w-3.5 h-3.5" />
                               <span>Imprimir</span>
@@ -600,6 +662,7 @@ export const CorrectivosView: React.FC<CorrectivosViewProps> = ({ onPrintOrder }
                   <th className="py-2.5 px-3 text-center">Estado</th>
                   <th className="py-2.5 px-3">Técnico</th>
                   <th className="py-2.5 px-3">Acciones Realizadas</th>
+                  <th className="py-2.5 px-3 text-right">PDF</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -615,6 +678,11 @@ export const CorrectivosView: React.FC<CorrectivosViewProps> = ({ onPrintOrder }
                     <tr key={row.id_ot} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-2.5 px-3 font-mono font-bold text-amber-700">
                         {row.id_ot}
+                        {row.firma_tecnico && (
+                          <span className="block text-[9.5px] font-sans font-semibold text-emerald-700">
+                            Firmada Digital
+                          </span>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 font-semibold text-slate-900">
                         {row.codigo_eq}
@@ -642,6 +710,19 @@ export const CorrectivosView: React.FC<CorrectivosViewProps> = ({ onPrintOrder }
                       </td>
                       <td className="py-2.5 px-3 text-slate-600 max-w-xs truncate" title={row.acciones_realizadas}>
                         {row.acciones_realizadas}
+                      </td>
+                      <td className="py-2.5 px-3 text-right">
+                        {canPrint && onPrintOrder && (
+                          <button
+                            type="button"
+                            onClick={() => handlePrint(row)}
+                            className="px-2.5 py-1 text-[11px] font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded inline-flex items-center gap-1"
+                            title="Imprimir / PDF Orden Cerrada"
+                          >
+                            <Printer className="w-3.5 h-3.5" />
+                            <span>PDF</span>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

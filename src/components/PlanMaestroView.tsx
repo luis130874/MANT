@@ -29,6 +29,7 @@ import {
   parseFecha
 } from '../utils/maintenanceEngine';
 import { exportElementToPDF } from '../utils/pdfGenerator';
+import { resolveSheetClientes } from '../utils/logoResolver';
 import { Equipo } from '../types';
 
 export const PlanMaestroView: React.FC = () => {
@@ -336,27 +337,52 @@ export const PlanMaestroView: React.FC = () => {
               >
                 {/* Top Content Block (Header + Table stays top-aligned) */}
                 <div className="space-y-4">
-                  {/* Sheet Header with Client Logo */}
+                  {/* Sheet Header with Prodexus & Client Logo */}
                   {(() => {
-                    const currentClienteObj = clientes.find(c => c.nombre.trim() === selectedCliente.trim());
+                    const sheetClientes = resolveSheetClientes(
+                      clientes,
+                      selectedCliente,
+                      chunk.map(g => g.equipo.cliente)
+                    );
+                    const plantLabel =
+                      selectedCliente.trim().toLowerCase() === 'todos' && sheetClientes.length === 1
+                        ? sheetClientes[0].nombre
+                        : selectedCliente;
                     return (
                       <div className="border-b border-slate-900 pb-2.5 flex items-start justify-between gap-4">
                         <div className="flex items-center gap-3">
-                          <div className="h-11 max-w-[150px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
+                          <div className="h-12 max-w-[155px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
                             <img
                               src="/assets/aistudio/prodexus_921c729e.jpeg"
                               alt="Prodexus CMMS"
                               className="max-h-full max-w-full object-contain"
                             />
                           </div>
-                          {currentClienteObj?.logo && (
-                            <div className="h-11 max-w-[140px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
-                              <img
-                                src={currentClienteObj.logo}
-                                alt={`Logo ${currentClienteObj.nombre}`}
-                                className="max-h-full max-w-full object-contain"
-                              />
-                            </div>
+                          {sheetClientes.map(cli =>
+                            cli.logo ? (
+                              <div
+                                key={cli.codigo}
+                                className="h-12 max-w-[150px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs"
+                              >
+                                <img
+                                  src={cli.logo}
+                                  alt={`Logo ${cli.nombre}`}
+                                  className="max-h-full max-w-full object-contain"
+                                />
+                              </div>
+                            ) : (
+                              <div
+                                key={cli.codigo}
+                                className="h-12 max-w-[160px] bg-slate-900 text-white rounded-lg border border-slate-700 px-2.5 flex flex-col justify-center shrink-0 shadow-2xs"
+                              >
+                                <span className="text-[9px] font-black uppercase tracking-tight leading-tight line-clamp-2">
+                                  {cli.nombre}
+                                </span>
+                                {cli.rut && (
+                                  <span className="text-[7px] font-mono text-slate-300">{cli.rut}</span>
+                                )}
+                              </div>
+                            )
                           )}
                           <div>
                             <div className="flex items-center gap-2">
@@ -371,7 +397,7 @@ export const PlanMaestroView: React.FC = () => {
                               PRODEXUS Enterprise · Plan Maestro Anual {selectedAnio}
                             </h2>
                             <p className="text-[9px] text-slate-600 font-medium mt-0.5">
-                              Empresa / Planta: <span className="font-bold text-slate-900">{selectedCliente.toUpperCase()}</span> · Sistema: <span className="font-semibold text-slate-800">{selectedSistema}</span> · Emisión: <span className="font-mono">{new Date().toLocaleDateString('es-ES')}</span>
+                              Empresa / Planta: <span className="font-bold text-slate-900">{plantLabel.toUpperCase()}</span> · Sistema: <span className="font-semibold text-slate-800">{selectedSistema}</span> · Emisión: <span className="font-mono">{new Date().toLocaleDateString('es-ES')}</span>
                             </p>
                           </div>
                         </div>

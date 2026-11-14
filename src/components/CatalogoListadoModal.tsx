@@ -17,6 +17,7 @@ import {
 import { Cliente, Equipo, Instrumento } from '../types';
 import { formatFechaDDMMYYYY, parseFecha } from '../utils/maintenanceEngine';
 import { exportElementToPDF } from '../utils/pdfGenerator';
+import { resolveSheetClientes } from '../utils/logoResolver';
 import { useMaintenance } from '../context/MaintenanceContext';
 
 interface CatalogoListadoModalProps {
@@ -88,9 +89,20 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [equipoVistaModo, setEquipoVistaModo] = useState<'planes' | 'consolidado'>('planes');
 
-  const currentClienteObj = clientes.find(
-    c => c.nombre.trim() === selectedCliente.trim()
+  const rowClienteNames = useMemo(
+    () =>
+      mode === 'equipos'
+        ? equipos.map(e => e.cliente)
+        : instrumentos.map(i => i.cliente),
+    [mode, equipos, instrumentos]
   );
+
+  const sheetClientes = useMemo(
+    () => resolveSheetClientes(clientes, selectedCliente, rowClienteNames),
+    [clientes, selectedCliente, rowClienteNames]
+  );
+
+  const currentClienteObj = sheetClientes[0];
 
   // Consolidated unique equipment view (1 row per asset)
   const equiposConsolidados = useMemo<EquipoConsolidado[]>(() => {
@@ -263,35 +275,57 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
     }
   };
 
-  const renderHeader = (pageIdx: number) => (
+  const renderHeader = (pageIdx: number) => {
+    const plantLabel =
+      selectedCliente.trim().toLowerCase() === 'todos' && sheetClientes.length === 1
+        ? sheetClientes[0].nombre
+        : selectedCliente;
+    return (
     <div className="border-b-2 border-slate-900 pb-2.5 flex items-start justify-between gap-4">
       <div className="flex items-center gap-3">
-        <div className="h-11 max-w-[140px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0">
+        <div className="h-12 max-w-[155px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs">
           <img
             src="/assets/aistudio/prodexus_921c729e.jpeg"
             alt="Prodexus CMMS"
             className="max-h-full max-w-full object-contain"
           />
         </div>
-        {currentClienteObj?.logo && (
-          <div className="h-11 max-w-[130px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0">
-            <img
-              src={currentClienteObj.logo}
-              alt={currentClienteObj.nombre}
-              className="max-h-full max-w-full object-contain"
-            />
-          </div>
+        {sheetClientes.map(cli =>
+          cli.logo ? (
+            <div
+              key={cli.codigo}
+              className="h-12 max-w-[150px] bg-white rounded-lg border border-slate-200 p-1 flex items-center justify-center shrink-0 shadow-2xs"
+            >
+              <img
+                src={cli.logo}
+                alt={cli.nombre}
+                className="max-h-full max-w-full object-contain"
+              />
+            </div>
+          ) : (
+            <div
+              key={cli.codigo}
+              className="h-12 max-w-[160px] bg-slate-900 text-white rounded-lg border border-slate-700 px-2.5 flex flex-col justify-center shrink-0 shadow-2xs"
+            >
+              <span className="text-[9px] font-black uppercase tracking-tight leading-tight line-clamp-2">
+                {cli.nombre}
+              </span>
+              {cli.rut && (
+                <span className="text-[7px] font-mono text-slate-300">{cli.rut}</span>
+              )}
+            </div>
+          )
         )}
         <div>
           <h2 className="text-sm font-black uppercase text-slate-900 tracking-tight">
-            {currentClienteObj?.nombre || 'PRODEXUS ENTERPRISE CMMS'} ·{' '}
+            {sheetClientes.length === 1 ? sheetClientes[0].nombre : 'PRODEXUS ENTERPRISE CMMS'} ·{' '}
             {mode === 'equipos'
               ? 'LISTADO OFICIAL DE EQUIPOS Y MAQUINARIA'
               : 'PADRÓN OFICIAL DE INSTRUMENTOS METROLÓGICOS'}
           </h2>
           <p className="text-[10px] text-slate-600 font-medium">
-            Planta: <strong>{selectedCliente.toUpperCase()}</strong>
-            {currentClienteObj?.rut ? ` · RUT: ${currentClienteObj.rut}` : ''} · Emisión:{' '}
+            Planta: <strong>{plantLabel.toUpperCase()}</strong>
+            {currentClienteObj?.rut && sheetClientes.length === 1 ? ` · RUT: ${currentClienteObj.rut}` : ''} · Emisión:{' '}
             {formatFechaDDMMYYYY(new Date())}
             {filtroDescripcion ? ` · Filtro: ${filtroDescripcion}` : ''}
           </p>
@@ -310,7 +344,8 @@ export const CatalogoListadoModal: React.FC<CatalogoListadoModalProps> = ({
         </p>
       </div>
     </div>
-  );
+    );
+  };
 
   const renderFooter = (pageIdx: number) => (
     <div className="mt-auto pt-4 border-t border-slate-300">

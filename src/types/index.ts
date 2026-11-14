@@ -66,6 +66,12 @@ export interface RegistroHistorialMP {
   repuestos_utilizados?: string;
   tareas_completadas?: string[];
   frecuencia?: string;
+  firma_tecnico?: string;
+  firma_supervisor?: string;
+  firmado_por?: string;
+  firmado_supervisor_por?: string;
+  fecha_firma_digital?: string;
+  ejecucion_digital?: boolean;
 }
 
 export type EstadoOrden = 'Pendiente' | 'Cerrada (A tiempo)' | 'Cerrada (Fuera de término)';
@@ -85,6 +91,12 @@ export interface OrdenCorrectivo {
   repuestos_utilizados?: string;
   costo_estimado?: number;
   prioridad?: 'Urgente' | 'Alta' | 'Media' | 'Baja';
+  firma_tecnico?: string;
+  firma_supervisor?: string;
+  firmado_por?: string;
+  firmado_supervisor_por?: string;
+  fecha_firma_digital?: string;
+  ejecucion_digital?: boolean;
 }
 
 export interface OrdenTrabajoOT {
@@ -101,6 +113,12 @@ export interface OrdenTrabajoOT {
   tecnico: string;
   materiales_utilizados?: string;
   prioridad?: 'Urgente' | 'Alta' | 'Media' | 'Baja';
+  firma_tecnico?: string;
+  firma_supervisor?: string;
+  firmado_por?: string;
+  firmado_supervisor_por?: string;
+  fecha_firma_digital?: string;
+  ejecucion_digital?: boolean;
 }
 
 export interface PuntoCalibracion {
@@ -167,6 +185,12 @@ export interface OrdenCalibracion {
   observaciones?: string;
   repuestos_utilizados?: string;
   proxima_calibracion?: string; // DD/MM/YYYY
+  firma_tecnico?: string;
+  firma_supervisor?: string;
+  firmado_por?: string;
+  firmado_supervisor_por?: string;
+  fecha_firma_digital?: string;
+  ejecucion_digital?: boolean;
 }
 
 export interface CeldaPlanCalibracion {
